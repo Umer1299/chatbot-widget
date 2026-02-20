@@ -280,4 +280,5 @@
      7. INITIAL MESSAGE
   ============================ */
   appendMessage(welcomeMessage, "bot");
+
 })();
