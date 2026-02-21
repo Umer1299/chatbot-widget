@@ -12,8 +12,7 @@
   }
 
   const BASE_URL = "https://chatflowai.io/version-test/api/1.1/wf/";
-  const CONFIG_URL =
-    BASE_URL + "get-chatbot?chatID=" + botId;
+  const CONFIG_URL = BASE_URL + "get-chatbot?chatID=" + botId;
   const MESSAGE_URL = BASE_URL + "create-chat";
 
   let config = null;
@@ -28,8 +27,13 @@
     try {
       const res = await fetch(CONFIG_URL);
       if (!res.ok) throw new Error("Invalid bot.");
-      const data=await res.json();
-      config = data.response;
+
+      const data = await res.json();
+      config = data.response || data;
+
+      // default values
+      config.primaryColor = config.primaryColor || "#10b981";
+      config.showBranding = config.showBranding ?? true;
 
       createSession();
       renderUI();
@@ -111,11 +115,7 @@
         background:${chatBg};
       }
 
-      .message {
-        margin-bottom:14px;
-        display:flex;
-      }
-
+      .message { margin-bottom:14px; display:flex; }
       .user { justify-content:flex-end; }
       .bot { justify-content:flex-start; }
 
@@ -167,13 +167,6 @@
         cursor:pointer;
         font-size:14px;
       }
-
-      .branding {
-        text-align:center;
-        font-size:11px;
-        padding:8px;
-        opacity:.6;
-      }
     </style>
 
     <div class="bubble">💬</div>
@@ -185,7 +178,6 @@
         <input placeholder="Type a message..." />
         <button>Send</button>
       </div>
-      ${config.showBranding ? '<div class="branding">Powered by AI</div>' : ""}
     </div>
     `;
 
@@ -227,8 +219,6 @@
     if (!text) return;
 
     appendMessage(messages, text, "user");
-    history.push({ role: "userMessage", content: text });
-
     input.value = "";
     isLoading = true;
 
@@ -239,36 +229,25 @@
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          botId,
-          sessionId,
+          botId: botId,
           message: text,
-          history
+          sessionId: sessionId
         })
       });
 
-try {
-  const response = await fetch(MESSAGE_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      botId: botId,
-      message: text,
-      sessionId: sessionId
-    })
-  });
+      if (!response.ok) throw new Error("Network error");
 
-  const data = await response.json();
+      const data = await response.json();
 
-  const botReply =
-    data.text ||
-    data.response?.text ||
-    "No response.";
+      const botReply =
+        data.text ||
+        data.response?.text ||
+        "No response.";
 
-  botBubble.innerHTML = escapeHtml(botReply);
+      botBubble.innerHTML = escapeHtml(botReply);
 
-      history.push({ role: "apiMessage", content: fullText });
-
-    } catch {
+    } catch (error) {
+      console.error("Chat error:", error);
       botBubble.innerHTML = "Server error.";
     }
 
@@ -296,7 +275,7 @@ try {
   }
 
   function escapeHtml(str) {
-    return str.replace(/[&<>"']/g, (m) => ({
+    return String(str).replace(/[&<>"']/g, (m) => ({
       "&": "&amp;",
       "<": "&lt;",
       ">": "&gt;",
@@ -305,7 +284,3 @@ try {
     })[m]);
   }
 })();
-
-
-
-
