@@ -29,35 +29,33 @@
       .then(function (json) {
 
         config = json.response || {};
-        config.primaryColor = config.primaryColor || "#10b981";
+        config.primaryColor = config.primaryColor || "#2563eb";
         config.name = config.name || "Chat Assistant";
         config.welcomeMessage = config.welcomeMessage || "Hello!";
         config.iconUrl = config.iconUrl || null;
 
-        // Normalize starter prompts
-        var prompts = config.starterPrompts;
-
-        if (!prompts) {
-          config.starterPrompts = [];
-        } else if (typeof prompts === "string") {
-          try {
-            var parsed = JSON.parse(prompts);
-            if (Array.isArray(parsed)) {
-              config.starterPrompts = parsed;
-            } else {
-              config.starterPrompts = prompts.split(",");
-            }
-          } catch (e) {
-            config.starterPrompts = prompts.split(",");
-          }
-        } else {
-          config.starterPrompts = prompts;
-        }
+        normalizePrompts(config);
 
         createSession();
         loadHistory();
         renderUI();
       });
+
+    function normalizePrompts(config) {
+      var prompts = config.starterPrompts;
+      if (!prompts) {
+        config.starterPrompts = [];
+      } else if (typeof prompts === "string") {
+        try {
+          var parsed = JSON.parse(prompts);
+          config.starterPrompts = Array.isArray(parsed)
+            ? parsed
+            : prompts.split(",");
+        } catch (e) {
+          config.starterPrompts = prompts.split(",");
+        }
+      }
+    }
 
     function createSession() {
       var key = "chat_session_" + botId;
@@ -88,17 +86,13 @@
 
       var isDark = theme === "dark";
 
-      var iconHTML = "";
-      if (config.iconUrl) {
-        var fullIcon = config.iconUrl.indexOf("http") === 0
-          ? config.iconUrl
-          : "https:" + config.iconUrl;
-
-        iconHTML =
-          '<img src="' + fullIcon + '" class="bubble-icon">';
-      } else {
-        iconHTML = '<span class="default-icon">💬</span>';
-      }
+      var iconHTML = config.iconUrl
+        ? '<img src="' +
+          (config.iconUrl.indexOf("http") === 0
+            ? config.iconUrl
+            : "https:" + config.iconUrl) +
+          '" class="bubble-icon">'
+        : '<span class="default-icon">💬</span>';
 
       shadow.innerHTML = `
 <style>
@@ -108,21 +102,18 @@
 position:fixed;
 bottom:24px;
 ${position === "left" ? "left:24px;" : "right:24px;"}
-width:64px;height:64px;
+width:60px;height:60px;
 border-radius:50%;
 background:${config.primaryColor};
 display:flex;align-items:center;justify-content:center;
 cursor:pointer;
-box-shadow:0 20px 50px rgba(0,0,0,.2);
+box-shadow:0 15px 40px rgba(0,0,0,.25);
 z-index:999999;
-transition:all .25s ease;
+transition:.25s;
 overflow:hidden;
 }
 .bubble:hover{transform:scale(1.08);}
-.bubble-icon{
-width:100%;height:100%;
-object-fit:cover;border-radius:50%;
-}
+.bubble-icon{width:100%;height:100%;object-fit:cover;}
 .default-icon{font-size:26px;color:white;}
 
 .window{
@@ -130,15 +121,15 @@ position:fixed;
 bottom:100px;
 ${position === "left" ? "left:24px;" : "right:24px;"}
 width:380px;height:600px;
-background:${isDark ? "#1f2937" : "#ffffff"};
-border-radius:18px;
+background:${isDark ? "#111827" : "#ffffff"};
+border-radius:20px;
 box-shadow:0 40px 100px rgba(0,0,0,.25);
 display:flex;flex-direction:column;
 overflow:hidden;
 z-index:999999;
 opacity:0;visibility:hidden;
 transform:translateY(20px) scale(.96);
-transition:all .35s cubic-bezier(.22,1,.36,1);
+transition:.3s ease;
 }
 .window.open{
 opacity:1;visibility:visible;
@@ -154,7 +145,7 @@ color:white;font-weight:600;
 .messages{
 flex:1;padding:16px;
 overflow-y:auto;
-background:${isDark ? "#111827" : "#f9fafb"};
+background:${isDark ? "#1f2937" : "#f3f4f6"};
 scroll-behavior:smooth;
 }
 
@@ -163,12 +154,11 @@ scroll-behavior:smooth;
 .bot{justify-content:flex-start;}
 
 .bubble-msg{
-max-width:78%;
+max-width:75%;
 padding:12px 16px;
 border-radius:18px;
 font-size:14px;
 line-height:1.5;
-word-break:break-word;
 }
 
 .user .bubble-msg{
@@ -178,20 +168,52 @@ border-bottom-right-radius:6px;
 }
 
 .bot .bubble-msg{
-background:${isDark ? "#374151" : "#ffffff"};
-color:${isDark ? "#ffffff" : "#111827"};
+background:white;
+color:#111;
 border-bottom-left-radius:6px;
-box-shadow:0 5px 15px rgba(0,0,0,.05);
+box-shadow:0 4px 12px rgba(0,0,0,.08);
 }
 
-.prompt{
-background:#eee;
-padding:8px 12px;
-border-radius:16px;
+.input-area{
+padding:14px;
+display:flex;
+background:white;
+border-top:1px solid #eee;
+}
+
+input{
+flex:1;
+padding:12px 14px;
+border-radius:999px;
+border:1px solid #ddd;
+outline:none;
+font-size:14px;
+}
+
+.send-btn{
+margin-left:8px;
+width:44px;height:44px;
+border-radius:50%;
+border:none;
+background:${config.primaryColor};
+display:flex;align-items:center;justify-content:center;
 cursor:pointer;
-font-size:13px;
-margin:6px 6px 0 0;
-display:inline-block;
+opacity:.5;
+transition:.2s;
+}
+.send-btn.active{opacity:1;}
+
+.typing{display:inline-flex;gap:4px;}
+.typing span{
+width:6px;height:6px;background:#999;
+border-radius:50%;
+animation:bounce 1.4s infinite ease-in-out both;
+}
+.typing span:nth-child(1){animation-delay:-0.32s;}
+.typing span:nth-child(2){animation-delay:-0.16s;}
+@keyframes bounce{
+0%,80%,100%{transform:scale(0);}
+40%{transform:scale(1);}
 }
 </style>
 
@@ -202,7 +224,11 @@ display:inline-block;
 <div class="messages"></div>
 <div class="input-area">
 <input placeholder="Type a message..." />
-<button class="send-btn">Send</button>
+<button class="send-btn">
+<svg width="18" height="18" fill="white" viewBox="0 0 24 24">
+<path d="M2 21l21-9L2 3v7l15 2-15 2z"/>
+</svg>
+</button>
 </div>
 </div>
 `;
@@ -214,47 +240,16 @@ display:inline-block;
       var sendBtn = shadow.querySelector(".send-btn");
 
       bubble.onclick = function () {
-        var open = windowEl.classList.toggle("open");
-        bubble.innerHTML = open ? "&#8595;" : iconHTML;
+        windowEl.classList.toggle("open");
       };
 
-      // Welcome + Starter Prompts
-      if (!history || history.length === 0) {
-        appendMessage(config.welcomeMessage, "bot", true);
-        renderStarterPrompts();
-      } else {
-        history.forEach(function (m) {
-          appendMessage(m.content, m.role, false);
-        });
-      }
+      input.addEventListener("input", function () {
+        sendBtn.classList.toggle("active", !!input.value.trim());
+      });
 
-      function renderStarterPrompts() {
-        if (!config.starterPrompts.length) return;
+      sendBtn.onclick = sendMessage;
 
-        var wrapper = document.createElement("div");
-        wrapper.style.marginTop = "8px";
-
-        config.starterPrompts.forEach(function (text) {
-
-          if (!text) return;
-
-          var btn = document.createElement("div");
-          btn.className = "prompt";
-          btn.textContent = text.trim();
-
-          btn.onclick = function () {
-            input.value = text.trim();
-            sendMessage();
-            wrapper.remove();
-          };
-
-          wrapper.appendChild(btn);
-        });
-
-        messages.appendChild(wrapper);
-      }
-
-      function appendMessage(text, role, save) {
+      function appendMessage(text, role) {
         var msg = document.createElement("div");
         msg.className = "message " + role;
         var bubble = document.createElement("div");
@@ -263,31 +258,24 @@ display:inline-block;
         msg.appendChild(bubble);
         messages.appendChild(msg);
         messages.scrollTop = messages.scrollHeight;
-        if (save) {
-          history.push({ role: role, content: text });
-          saveHistory();
-        }
         return bubble;
       }
 
-      sendBtn.onclick = sendMessage;
-
-      input.addEventListener("keypress", function (e) {
-        if (e.key === "Enter") sendMessage();
-      });
+      appendMessage(config.welcomeMessage, "bot");
 
       function sendMessage() {
-
-        if (isLoading) return;
+        if (isLoading || !input.value.trim()) return;
 
         var text = input.value.trim();
-        if (!text) return;
-
-        appendMessage(text, "user", true);
+        appendMessage(text, "user");
         input.value = "";
-        isLoading = true;
+        sendBtn.classList.remove("active");
 
-        var botBubble = appendMessage("Typing...", "bot", false);
+        var botBubble = appendMessage("", "bot");
+        botBubble.innerHTML =
+          '<div class="typing"><span></span><span></span><span></span></div>';
+
+        isLoading = true;
 
         fetch(MESSAGE_URL, {
           method: "POST",
@@ -298,18 +286,13 @@ display:inline-block;
             sessionId: sessionId
           })
         })
-          .then(function (r) { return r.json(); })
+          .then(r => r.json())
           .then(function (data) {
-
             var reply =
               data.text ||
               (data.response && data.response.text) ||
               "No response.";
-
             botBubble.textContent = reply;
-
-            history.push({ role: "bot", content: reply });
-            saveHistory();
           })
           .catch(function () {
             botBubble.textContent = "Server error.";
