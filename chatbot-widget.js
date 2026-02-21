@@ -9,7 +9,9 @@
     console.error("Chat Widget: data-bot-id is required.");
     return;
   }
-  let history=[];
+
+  let history = [];
+
   const BASE_URL = "https://chatflowai.io/version-test/api/1.1/wf/";
   const CONFIG_URL = BASE_URL + "get-chatbot?chatID=" + botId;
   const MESSAGE_URL = BASE_URL + "create-chat";
@@ -48,28 +50,23 @@
   }
 
   function loadHistory() {
-  const saved = localStorage.getItem("chat_history_" + botId);
-  if (saved) {
-    history = JSON.parse(saved);
+    const saved = localStorage.getItem("chat_history_" + botId);
+    if (saved) {
+      history = JSON.parse(saved);
+    }
   }
-}
+
   function saveHistory() {
-  localStorage.setItem(
-    "chat_history_" + botId,
-    JSON.stringify(history)
-  );
-}
+    localStorage.setItem(
+      "chat_history_" + botId,
+      JSON.stringify(history)
+    );
+  }
+
   function renderUI() {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const shadow = host.attachShadow({ mode: "open" });
-    if (history.length > 0) {
-  history.forEach(msg => {
-    appendMessage(messages, msg.content, msg.role);
-  });
-} else {
-  appendMessage(messages, config.welcomeMessage, "bot");
-}
 
     const isDark = theme === "dark";
     const bgColor = isDark ? "#1f2937" : "#ffffff";
@@ -127,11 +124,7 @@
         background:${chatBg};
       }
 
-      .message {
-        margin-bottom:12px;
-        display:flex;
-      }
-
+      .message { margin-bottom:12px; display:flex; }
       .user { justify-content:flex-end; }
       .bot { justify-content:flex-start; }
 
@@ -184,7 +177,6 @@
         font-size:14px;
       }
 
-      /* Typing animation */
       .typing {
         display:inline-flex;
         gap:4px;
@@ -225,6 +217,15 @@
     const input = shadow.querySelector("input");
     const button = shadow.querySelector("button");
 
+    // Render history AFTER messages container exists
+    if (history.length > 0) {
+      history.forEach(msg => {
+        renderMessage(messages, msg.content, msg.role, false);
+      });
+    } else {
+      renderMessage(messages, config.welcomeMessage, "bot", true);
+    }
+
     bubble.onclick = () => {
       windowEl.style.display =
         windowEl.style.display === "flex" ? "none" : "flex";
@@ -235,8 +236,6 @@
         windowEl.style.display = "flex";
       }, 1500);
     }
-
-    appendMessage(messages, config.welcomeMessage, "bot");
 
     button.onclick = () => sendMessage();
     input.addEventListener("keypress", (e) => {
@@ -249,13 +248,12 @@
       const text = input.value.trim();
       if (!text) return;
 
-      appendMessage(messages, text, "user");
+      renderMessage(messages, text, "user", true);
       input.value = "";
       isLoading = true;
 
-      const botMsg = appendMessage(messages, "", "bot");
+      const botMsg = renderMessage(messages, "", "bot", false);
 
-      // Show loader
       botMsg.innerHTML = `
         <div class="typing">
           <span></span>
@@ -269,14 +267,13 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            botId: botId,
+            botId,
             message: text,
-            sessionId: sessionId
+            sessionId
           })
         });
 
         const data = await response.json();
-
         const reply =
           data.text ||
           data.response?.text ||
@@ -284,8 +281,10 @@
 
         botMsg.textContent = reply;
 
+        history.push({ role: "bot", content: reply });
+        saveHistory();
+
       } catch (err) {
-        console.error("Chat error:", err);
         botMsg.textContent = "Server error.";
       }
 
@@ -293,35 +292,29 @@
     }
   }
 
-  function appendMessage(container, text, type) {
-  const msg = document.createElement("div");
-  msg.className = "message " + type;
+  function renderMessage(container, text, role, save) {
+    const msg = document.createElement("div");
+    msg.className = "message " + role;
 
-  const bubble = document.createElement("div");
-  bubble.className = "bubble-msg";
-  bubble.textContent = text;
+    const bubble = document.createElement("div");
+    bubble.className = "bubble-msg";
+    bubble.textContent = text;
 
-  msg.appendChild(bubble);
-  container.appendChild(msg);
-  container.scrollTop = container.scrollHeight;
+    msg.appendChild(bubble);
+    container.appendChild(msg);
+    container.scrollTop = container.scrollHeight;
 
-  // Save to history (skip loader)
-  if (text && text !== "...") {
-    history.push({ role: type, content: text });
-    saveHistory();
+    if (save && text) {
+      history.push({ role, content: text });
+      saveHistory();
+    }
+
+    return bubble;
   }
-
-  return bubble;
-}
 
   function escapeHtml(str) {
-    return String(str).replace(/[&<>"']/g, (m) => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;"
-    })[m]);
+    return String(str).replace(/[&<>"']/g, m =>
+      ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m])
+    );
   }
 })();
-
