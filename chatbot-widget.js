@@ -55,13 +55,19 @@
 
       var isDark = theme === "dark";
 
-      var iconHTML = config.iconUrl
-        ? '<img src="' +
-          (config.iconUrl.indexOf("http") === 0
-            ? config.iconUrl
-            : "https:" + config.iconUrl) +
-          '" class="bubble-icon">'
+      var iconUrl = config.iconUrl
+        ? (config.iconUrl.indexOf("http") === 0
+          ? config.iconUrl
+          : "https:" + config.iconUrl)
+        : "";
+
+      var iconHTML = iconUrl
+        ? '<img src="' + iconUrl + '" class="bubble-icon">'
         : '<span class="default-icon">💬</span>';
+
+      var headerIconHTML = iconUrl
+        ? '<img src="' + iconUrl + '" class="header-icon" alt="">'
+        : "";
 
       shadow.innerHTML = `
 <style>
@@ -114,6 +120,8 @@ padding:18px;
 background:${config.primaryColor};
 color:white;font-weight:600;
 }
+.header-main{display:flex;align-items:center;gap:10px;}
+.header-icon{width:32px;height:32px;border-radius:50%;object-fit:cover;background:rgba(255,255,255,.2);}
 
 .messages{
 flex:1;padding:16px;
@@ -198,7 +206,7 @@ animation:bounce 1.4s infinite ease-in-out both;
 <div class="bubble">${iconHTML}</div>
 
 <div class="window">
-<div class="header">${config.name}</div>
+<div class="header"><div class="header-main">${headerIconHTML}<span>${config.name}</span></div></div>
 <div class="messages"></div>
 <div class="input-area">
 <input placeholder="Type a message..." />
@@ -375,4 +383,3 @@ animation:bounce 1.4s infinite ease-in-out both;
   }
 
 })();
-
