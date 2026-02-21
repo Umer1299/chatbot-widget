@@ -51,9 +51,7 @@
 
   function loadHistory() {
     const saved = localStorage.getItem("chat_history_" + botId);
-    if (saved) {
-      history = JSON.parse(saved);
-    }
+    if (saved) history = JSON.parse(saved);
   }
 
   function saveHistory() {
@@ -90,10 +88,13 @@
         justify-content:center;
         cursor:pointer;
         color:white;
-        font-size:24px;
+        font-size:22px;
         box-shadow:0 20px 50px rgba(0,0,0,.2);
         z-index:9999;
+        transition: transform .25s ease;
       }
+
+      .bubble-button:active { transform: scale(.92); }
 
       .window {
         position: fixed;
@@ -104,10 +105,26 @@
         background:${bgColor};
         border-radius:18px;
         box-shadow:0 30px 80px rgba(0,0,0,.2);
-        display:none;
+        display:flex;
         flex-direction:column;
         overflow:hidden;
         z-index:9999;
+
+        opacity:0;
+        visibility:hidden;
+        pointer-events:none;
+        transform: translateY(18px) scale(.96);
+        transform-origin: ${position === "left" ? "bottom left" : "bottom right"};
+        transition: opacity .35s ease,
+                    transform .35s cubic-bezier(.22,1,.36,1),
+                    visibility .35s;
+      }
+
+      .window.open {
+        opacity:1;
+        visibility:visible;
+        pointer-events:auto;
+        transform: translateY(0) scale(1);
       }
 
       .header {
@@ -177,25 +194,17 @@
         font-size:14px;
       }
 
-      .typing {
-        display:inline-flex;
-        gap:4px;
-      }
-
+      .typing { display:inline-flex; gap:4px; }
       .typing span {
-        width:6px;
-        height:6px;
-        background:#999;
-        border-radius:50%;
-        animation: bounce 1.4s infinite ease-in-out both;
+        width:6px;height:6px;background:#999;border-radius:50%;
+        animation:bounce 1.4s infinite ease-in-out both;
       }
-
-      .typing span:nth-child(1) { animation-delay: -0.32s; }
-      .typing span:nth-child(2) { animation-delay: -0.16s; }
+      .typing span:nth-child(1){animation-delay:-.32s;}
+      .typing span:nth-child(2){animation-delay:-.16s;}
 
       @keyframes bounce {
-        0%, 80%, 100% { transform: scale(0); }
-        40% { transform: scale(1); }
+        0%,80%,100%{transform:scale(0);}
+        40%{transform:scale(1);}
       }
     </style>
 
@@ -217,28 +226,43 @@
     const input = shadow.querySelector("input");
     const button = shadow.querySelector("button");
 
-    // Render history AFTER messages container exists
-    if (history.length > 0) {
-      history.forEach(msg => {
-        renderMessage(messages, msg.content, msg.role, false);
-      });
-    } else {
-      renderMessage(messages, config.welcomeMessage, "bot", true);
+    function scrollBottom() {
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function updateIcon(open) {
+      bubble.style.transform = "scale(.8)";
+      setTimeout(() => {
+        bubble.textContent = open ? "↓" : "💬";
+        bubble.style.transform = "scale(1)";
+      }, 120);
     }
 
     bubble.onclick = () => {
-      windowEl.style.display =
-        windowEl.style.display === "flex" ? "none" : "flex";
+      const open = windowEl.classList.toggle("open");
+      updateIcon(open);
+      if (open) requestAnimationFrame(scrollBottom);
     };
 
     if (autoOpen) {
       setTimeout(() => {
-        windowEl.style.display = "flex";
-      }, 1500);
+        windowEl.classList.add("open");
+        updateIcon(true);
+        scrollBottom();
+      }, 1200);
     }
 
-    button.onclick = () => sendMessage();
-    input.addEventListener("keypress", (e) => {
+    // Render history
+    if (history.length > 0) {
+      history.forEach(msg =>
+        renderMessage(messages, msg.content, msg.role, false)
+      );
+    } else {
+      renderMessage(messages, config.welcomeMessage, "bot", true);
+    }
+
+    button.onclick = sendMessage;
+    input.addEventListener("keypress", e => {
       if (e.key === "Enter") sendMessage();
     });
 
@@ -252,13 +276,11 @@
       input.value = "";
       isLoading = true;
 
-      const botMsg = renderMessage(messages, "", "bot", false);
+      const botBubble = renderMessage(messages, "", "bot", false);
 
-      botMsg.innerHTML = `
+      botBubble.innerHTML = `
         <div class="typing">
-          <span></span>
-          <span></span>
-          <span></span>
+          <span></span><span></span><span></span>
         </div>
       `;
 
@@ -266,29 +288,31 @@
         const response = await fetch(MESSAGE_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            botId,
-            message: text,
-            sessionId
-          })
+          body: JSON.stringify({ botId, message: text, sessionId })
         });
 
         const data = await response.json();
         const reply =
-          data.text ||
-          data.response?.text ||
-          "No response.";
+          data.text || data.response?.text || "No response.";
 
-        botMsg.textContent = reply;
+        await typeMessage(botBubble, reply);
 
         history.push({ role: "bot", content: reply });
         saveHistory();
-
-      } catch (err) {
-        botMsg.textContent = "Server error.";
+      } catch {
+        botBubble.textContent = "Server error.";
       }
 
       isLoading = false;
+      scrollBottom();
+    }
+
+    async function typeMessage(el, text) {
+      el.textContent = "";
+      for (let i = 0; i < text.length; i++) {
+        el.textContent += text[i];
+        await new Promise(r => setTimeout(r, 15));
+      }
     }
   }
 
@@ -302,11 +326,13 @@
 
     msg.appendChild(bubble);
     container.appendChild(msg);
-    container.scrollTop = container.scrollHeight;
 
     if (save && text) {
       history.push({ role, content: text });
-      saveHistory();
+      localStorage.setItem(
+        "chat_history_" + botId,
+        JSON.stringify(history)
+      );
     }
 
     return bubble;
