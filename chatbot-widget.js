@@ -77,29 +77,31 @@
 
       .bubble-button {
         position: fixed;
-  bottom: 24px;
-  ${position === "left" ? "left:24px;" : "right:24px;"}
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: ${config.primaryColor};
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  cursor:pointer;
-  color:white;
-  font-size:22px;
-  box-shadow:0 20px 50px rgba(0,0,0,.2);
-  z-index:9999;
-
-  transition: transform .25s ease, box-shadow .25s ease;
+        bottom: 24px;
+        ${position === "left" ? "left:24px;" : "right:24px;"}
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: ${config.primaryColor};
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        cursor:pointer;
+        color:white;
+        font-size:22px;
+        box-shadow:0 20px 50px rgba(0,0,0,.2);
+        z-index:9999;
+        transition: transform .25s ease, box-shadow .25s ease;
       }
-      .bubble-button:hover {
-  transform: scale(1.08);
-  box-shadow: 0 25px 60px rgba(0,0,0,.25);
-}
 
-      .bubble-button:active { transform: scale(.92); }
+      .bubble-button:hover {
+        transform: scale(1.08);
+        box-shadow:0 25px 60px rgba(0,0,0,.25);
+      }
+
+      .bubble-button:active {
+        transform: scale(.92);
+      }
 
       .window {
         position: fixed;
@@ -114,7 +116,6 @@
         flex-direction:column;
         overflow:hidden;
         z-index:9999;
-
         opacity:0;
         visibility:hidden;
         pointer-events:none;
@@ -231,8 +232,11 @@
     const input = shadow.querySelector("input");
     const button = shadow.querySelector("button");
 
-    function scrollBottom() {
-      messages.scrollTop = messages.scrollHeight;
+    function scrollBottom(smooth = false) {
+      messages.scrollTo({
+        top: messages.scrollHeight,
+        behavior: smooth ? "smooth" : "auto"
+      });
     }
 
     function updateIcon(open) {
@@ -246,7 +250,7 @@
     bubble.onclick = () => {
       const open = windowEl.classList.toggle("open");
       updateIcon(open);
-      if (open) requestAnimationFrame(scrollBottom);
+      if (open) requestAnimationFrame(() => scrollBottom());
     };
 
     if (autoOpen) {
@@ -257,7 +261,6 @@
       }, 1200);
     }
 
-    // Render history
     if (history.length > 0) {
       history.forEach(msg =>
         renderMessage(messages, msg.content, msg.role, false)
@@ -279,6 +282,7 @@
 
       renderMessage(messages, text, "user", true);
       input.value = "";
+      scrollBottom(true);
       isLoading = true;
 
       const botBubble = renderMessage(messages, "", "bot", false);
@@ -288,6 +292,8 @@
           <span></span><span></span><span></span>
         </div>
       `;
+
+      scrollBottom();
 
       try {
         const response = await fetch(MESSAGE_URL, {
@@ -309,15 +315,17 @@
       }
 
       isLoading = false;
-      scrollBottom();
+      scrollBottom(true);
     }
 
     async function typeMessage(el, text) {
       el.textContent = "";
       for (let i = 0; i < text.length; i++) {
         el.textContent += text[i];
+        scrollBottom();
         await new Promise(r => setTimeout(r, 15));
       }
+      scrollBottom(true);
     }
   }
 
@@ -349,4 +357,3 @@
     );
   }
 })();
-
