@@ -77,22 +77,27 @@
 
       .bubble-button {
         position: fixed;
-        bottom: 24px;
-        ${position === "left" ? "left:24px;" : "right:24px;"}
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        background: ${config.primaryColor};
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        cursor:pointer;
-        color:white;
-        font-size:22px;
-        box-shadow:0 20px 50px rgba(0,0,0,.2);
-        z-index:9999;
-        transition: transform .25s ease;
+  bottom: 24px;
+  ${position === "left" ? "left:24px;" : "right:24px;"}
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: ${config.primaryColor};
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  color:white;
+  font-size:22px;
+  box-shadow:0 20px 50px rgba(0,0,0,.2);
+  z-index:9999;
+
+  transition: transform .25s ease, box-shadow .25s ease;
       }
+      .bubble-button:hover {
+  transform: scale(1.08);
+  box-shadow: 0 25px 60px rgba(0,0,0,.25);
+}
 
       .bubble-button:active { transform: scale(.92); }
 
@@ -344,3 +349,4 @@
     );
   }
 })();
+
