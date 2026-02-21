@@ -21,6 +21,7 @@
 
     var config = {};
     var sessionId = null;
+    var history = [];
     var isLoading = false;
 
     fetch(CONFIG_URL)
@@ -28,12 +29,28 @@
       .then(function (json) {
 
         config = json.response || {};
-        config.primaryColor = config.primaryColor || "#2563eb";
+        config.primaryColor = config.primaryColor || "#10b981";
         config.name = config.name || "Chat Assistant";
         config.welcomeMessage = config.welcomeMessage || "Hello!";
         config.iconUrl = config.iconUrl || null;
 
+        var prompts = config.starterPrompts;
+
+        if (!prompts) {
+          config.starterPrompts = [];
+        } else if (typeof prompts === "string") {
+          try {
+            var parsed = JSON.parse(prompts);
+            config.starterPrompts = Array.isArray(parsed)
+              ? parsed
+              : prompts.split(",");
+          } catch (e) {
+            config.starterPrompts = prompts.split(",");
+          }
+        }
+
         createSession();
+        loadHistory();
         renderUI();
       });
 
@@ -44,6 +61,18 @@
         sessionId = "s_" + Date.now();
         localStorage.setItem(key, sessionId);
       }
+    }
+
+    function loadHistory() {
+      var saved = localStorage.getItem("chat_history_" + botId);
+      if (saved) history = JSON.parse(saved);
+    }
+
+    function saveHistory() {
+      localStorage.setItem(
+        "chat_history_" + botId,
+        JSON.stringify(history)
+      );
     }
 
     function renderUI() {
@@ -70,18 +99,21 @@
 position:fixed;
 bottom:24px;
 ${position === "left" ? "left:24px;" : "right:24px;"}
-width:60px;height:60px;
+width:64px;height:64px;
 border-radius:50%;
 background:${config.primaryColor};
 display:flex;align-items:center;justify-content:center;
 cursor:pointer;
-box-shadow:0 15px 40px rgba(0,0,0,.25);
+box-shadow:0 20px 50px rgba(0,0,0,.2);
 z-index:999999;
-transition:.25s;
+transition:all .25s ease;
 overflow:hidden;
 }
 .bubble:hover{transform:scale(1.08);}
-.bubble-icon{width:100%;height:100%;object-fit:cover;}
+.bubble-icon{
+width:100%;height:100%;
+object-fit:cover;border-radius:50%;
+}
 .default-icon{font-size:26px;color:white;}
 
 .window{
@@ -89,15 +121,15 @@ position:fixed;
 bottom:100px;
 ${position === "left" ? "left:24px;" : "right:24px;"}
 width:380px;height:600px;
-background:${isDark ? "#111827" : "#ffffff"};
-border-radius:20px;
+background:${isDark ? "#1f2937" : "#ffffff"};
+border-radius:18px;
 box-shadow:0 40px 100px rgba(0,0,0,.25);
 display:flex;flex-direction:column;
 overflow:hidden;
 z-index:999999;
 opacity:0;visibility:hidden;
 transform:translateY(20px) scale(.96);
-transition:.3s ease;
+transition:all .35s cubic-bezier(.22,1,.36,1);
 }
 .window.open{
 opacity:1;visibility:visible;
@@ -113,7 +145,7 @@ color:white;font-weight:600;
 .messages{
 flex:1;padding:16px;
 overflow-y:auto;
-background:${isDark ? "#1f2937" : "#f3f4f6"};
+background:${isDark ? "#111827" : "#f9fafb"};
 }
 
 .message{margin-bottom:12px;display:flex;}
@@ -121,11 +153,12 @@ background:${isDark ? "#1f2937" : "#f3f4f6"};
 .bot{justify-content:flex-start;}
 
 .bubble-msg{
-max-width:75%;
+max-width:78%;
 padding:12px 16px;
 border-radius:18px;
 font-size:14px;
 line-height:1.5;
+word-break:break-word;
 }
 
 .user .bubble-msg{
@@ -135,52 +168,20 @@ border-bottom-right-radius:6px;
 }
 
 .bot .bubble-msg{
-background:white;
-color:#111;
+background:${isDark ? "#374151" : "#ffffff"};
+color:${isDark ? "#ffffff" : "#111827"};
 border-bottom-left-radius:6px;
-box-shadow:0 4px 12px rgba(0,0,0,.08);
+box-shadow:0 5px 15px rgba(0,0,0,.05);
 }
 
-.input-area{
-padding:14px;
-display:flex;
-background:white;
-border-top:1px solid #eee;
-}
-
-input{
-flex:1;
-padding:12px 14px;
-border-radius:999px;
-border:1px solid #ddd;
-outline:none;
-font-size:14px;
-}
-
-.send-btn{
-margin-left:8px;
-width:44px;height:44px;
-border-radius:50%;
-border:none;
-background:${config.primaryColor};
-display:flex;align-items:center;justify-content:center;
+.prompt{
+background:#eee;
+padding:8px 12px;
+border-radius:16px;
 cursor:pointer;
-opacity:.5;
-transition:.2s;
-}
-.send-btn.active{opacity:1;}
-
-.typing{display:inline-flex;gap:4px;}
-.typing span{
-width:6px;height:6px;background:#999;
-border-radius:50%;
-animation:bounce 1.4s infinite ease-in-out both;
-}
-.typing span:nth-child(1){animation-delay:-0.32s;}
-.typing span:nth-child(2){animation-delay:-0.16s;}
-@keyframes bounce{
-0%,80%,100%{transform:scale(0);}
-40%{transform:scale(1);}
+font-size:13px;
+margin:6px 6px 0 0;
+display:inline-block;
 }
 </style>
 
@@ -191,11 +192,7 @@ animation:bounce 1.4s infinite ease-in-out both;
 <div class="messages"></div>
 <div class="input-area">
 <input placeholder="Type a message..." />
-<button class="send-btn">
-<svg width="18" height="18" fill="white" viewBox="0 0 24 24">
-<path d="M2 21l21-9L2 3v7l15 2-15 2z"/>
-</svg>
-</button>
+<button class="send-btn">Send</button>
 </div>
 </div>
 `;
@@ -206,60 +203,63 @@ animation:bounce 1.4s infinite ease-in-out both;
       var input = shadow.querySelector("input");
       var sendBtn = shadow.querySelector(".send-btn");
 
-      function scrollBottom() {
-        messages.scrollTop = messages.scrollHeight;
-      }
-
+      // ✅ FIX 1: ICON CHANGES WHEN OPEN
       bubble.onclick = function () {
-        windowEl.classList.toggle("open");
-        setTimeout(scrollBottom, 200);
+        var open = windowEl.classList.toggle("open");
+        bubble.innerHTML = open ? "&#8595;" : iconHTML;
       };
 
-      input.addEventListener("input", function () {
-        sendBtn.classList.toggle("active", !!input.value.trim());
-      });
+      // Welcome
+      if (!history || history.length === 0) {
+        appendMessage(config.welcomeMessage, "bot", true);
+      }
 
-      // ✅ ENTER KEY SENDS MESSAGE
-      input.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          sendMessage();
+      function appendMessage(text, role, save) {
+        var msg = document.createElement("div");
+        msg.className = "message " + role;
+        var bubbleMsg = document.createElement("div");
+        bubbleMsg.className = "bubble-msg";
+        bubbleMsg.textContent = text;
+        msg.appendChild(bubbleMsg);
+        messages.appendChild(msg);
+        messages.scrollTop = messages.scrollHeight;
+        if (save) {
+          history.push({ role: role, content: text });
+          saveHistory();
         }
-      });
+        return bubbleMsg;
+      }
 
       sendBtn.onclick = sendMessage;
 
-      function appendMessage(text, role) {
-        var msg = document.createElement("div");
-        msg.className = "message " + role;
-        var bubble = document.createElement("div");
-        bubble.className = "bubble-msg";
-        bubble.textContent = text;
-        msg.appendChild(bubble);
-        messages.appendChild(msg);
-        scrollBottom();
-        return bubble;
-      }
+      input.addEventListener("keypress", function (e) {
+        if (e.key === "Enter") sendMessage();
+      });
 
-      appendMessage(config.welcomeMessage, "bot");
+      // ✅ FIX 2: TYPEWRITER ANIMATION
+      function typeWriter(element, text) {
+        element.textContent = "";
+        var i = 0;
+        var interval = setInterval(function () {
+          element.textContent += text.charAt(i);
+          messages.scrollTop = messages.scrollHeight;
+          i++;
+          if (i >= text.length) clearInterval(interval);
+        }, 15);
+      }
 
       function sendMessage() {
 
-        if (isLoading || !input.value.trim()) return;
+        if (isLoading) return;
 
         var text = input.value.trim();
-        appendMessage(text, "user");
+        if (!text) return;
+
+        appendMessage(text, "user", true);
         input.value = "";
-        sendBtn.classList.remove("active");
-
-        var botBubble = appendMessage("", "bot");
-
-        botBubble.innerHTML =
-          '<div class="typing"><span></span><span></span><span></span></div>';
-
-        scrollBottom(); // ensure loader visible
-
         isLoading = true;
+
+        var botBubble = appendMessage("...", "bot", false);
 
         fetch(MESSAGE_URL, {
           method: "POST",
@@ -270,7 +270,7 @@ animation:bounce 1.4s infinite ease-in-out both;
             sessionId: sessionId
           })
         })
-          .then(r => r.json())
+          .then(function (r) { return r.json(); })
           .then(function (data) {
 
             var reply =
@@ -278,13 +278,13 @@ animation:bounce 1.4s infinite ease-in-out both;
               (data.response && data.response.text) ||
               "No response.";
 
-            botBubble.textContent = reply;
+            typeWriter(botBubble, reply);
 
-            scrollBottom(); // auto scroll after response
+            history.push({ role: "bot", content: reply });
+            saveHistory();
           })
           .catch(function () {
             botBubble.textContent = "Server error.";
-            scrollBottom();
           })
           .finally(function () {
             isLoading = false;
