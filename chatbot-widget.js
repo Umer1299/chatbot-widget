@@ -246,18 +246,25 @@
         })
       });
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
+try {
+  const response = await fetch(MESSAGE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      botId: botId,
+      message: text,
+      sessionId: sessionId
+    })
+  });
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        fullText += chunk;
-        botBubble.innerHTML = escapeHtml(data.text||data.response?.text||"No Response");
-        messages.scrollTop = messages.scrollHeight;
-      }
+  const data = await response.json();
+
+  const botReply =
+    data.text ||
+    data.response?.text ||
+    "No response.";
+
+  botBubble.innerHTML = escapeHtml(botReply);
 
       history.push({ role: "apiMessage", content: fullText });
 
@@ -298,6 +305,7 @@
     })[m]);
   }
 })();
+
 
 
 
