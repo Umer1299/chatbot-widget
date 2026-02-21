@@ -14,8 +14,6 @@
     if (!botId) return;
 
     var config = {};
-    var sessionId = null;
-
     var BASE_URL = "https://chatflowai.io/version-test/api/1.1/wf/";
     var CONFIG_URL = BASE_URL + "get-chatbot?chatID=" + botId;
 
@@ -52,7 +50,7 @@
             cursor:pointer;color:white;
             box-shadow:0 20px 50px rgba(0,0,0,.2);
             transition:transform .25s ease;
-            z-index:9999;
+            z-index:999999;
           }
 
           .bubble:hover{ transform:scale(1.08); }
@@ -69,18 +67,19 @@
             background:#fff;
             border-radius:18px;
             box-shadow:0 30px 80px rgba(0,0,0,.2);
-            opacity:0;visibility:hidden;
-            transform:translateY(20px) scale(.95);
-            transition:all .35s ease;
-            overflow:hidden;
-            display:flex;
+            display:none;
             flex-direction:column;
+            overflow:hidden;
+            z-index:999999;
+            transition:transform .3s ease, opacity .3s ease;
+            transform:translateY(20px);
+            opacity:0;
           }
 
-          .window.open{
+          .window.active{
+            display:flex;
+            transform:translateY(0);
             opacity:1;
-            visibility:visible;
-            transform:translateY(0) scale(1);
           }
 
           .header{
@@ -111,24 +110,28 @@
           var img = document.createElement("img");
           img.src = config.iconUrl;
           img.onerror = function(){
-            icon.innerHTML = "&#128172;"; // chat emoji safe HTML
+            icon.innerHTML = "&#128172;";
           };
           icon.appendChild(img);
         } else {
-          icon.innerHTML = "&#128172;"; // 💬 safe HTML entity
+          icon.innerHTML = "&#128172;";
         }
       }
 
       setIcon();
 
       bubble.onclick = function(){
-        var isOpen = windowEl.classList.toggle("open");
+
+        var isOpen = windowEl.classList.contains("active");
 
         if(isOpen){
-          icon.innerHTML = "&#8595;"; // ↓ safe HTML entity
-        } else {
+          windowEl.classList.remove("active");
           setIcon();
+        } else {
+          windowEl.classList.add("active");
+          icon.innerHTML = "&#8595;";
         }
+
       };
 
     }
