@@ -21,7 +21,6 @@
 
     var config = {};
     var sessionId = null;
-    var history = [];
     var isLoading = false;
 
     fetch(CONFIG_URL)
@@ -34,28 +33,9 @@
         config.welcomeMessage = config.welcomeMessage || "Hello!";
         config.iconUrl = config.iconUrl || null;
 
-        normalizePrompts(config);
-
         createSession();
-        loadHistory();
         renderUI();
       });
-
-    function normalizePrompts(config) {
-      var prompts = config.starterPrompts;
-      if (!prompts) {
-        config.starterPrompts = [];
-      } else if (typeof prompts === "string") {
-        try {
-          var parsed = JSON.parse(prompts);
-          config.starterPrompts = Array.isArray(parsed)
-            ? parsed
-            : prompts.split(",");
-        } catch (e) {
-          config.starterPrompts = prompts.split(",");
-        }
-      }
-    }
 
     function createSession() {
       var key = "chat_session_" + botId;
@@ -64,18 +44,6 @@
         sessionId = "s_" + Date.now();
         localStorage.setItem(key, sessionId);
       }
-    }
-
-    function loadHistory() {
-      var saved = localStorage.getItem("chat_history_" + botId);
-      if (saved) history = JSON.parse(saved);
-    }
-
-    function saveHistory() {
-      localStorage.setItem(
-        "chat_history_" + botId,
-        JSON.stringify(history)
-      );
     }
 
     function renderUI() {
@@ -146,7 +114,6 @@ color:white;font-weight:600;
 flex:1;padding:16px;
 overflow-y:auto;
 background:${isDark ? "#1f2937" : "#f3f4f6"};
-scroll-behavior:smooth;
 }
 
 .message{margin-bottom:12px;display:flex;}
@@ -239,12 +206,25 @@ animation:bounce 1.4s infinite ease-in-out both;
       var input = shadow.querySelector("input");
       var sendBtn = shadow.querySelector(".send-btn");
 
+      function scrollBottom() {
+        messages.scrollTop = messages.scrollHeight;
+      }
+
       bubble.onclick = function () {
         windowEl.classList.toggle("open");
+        setTimeout(scrollBottom, 200);
       };
 
       input.addEventListener("input", function () {
         sendBtn.classList.toggle("active", !!input.value.trim());
+      });
+
+      // ✅ ENTER KEY SENDS MESSAGE
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
       });
 
       sendBtn.onclick = sendMessage;
@@ -257,13 +237,14 @@ animation:bounce 1.4s infinite ease-in-out both;
         bubble.textContent = text;
         msg.appendChild(bubble);
         messages.appendChild(msg);
-        messages.scrollTop = messages.scrollHeight;
+        scrollBottom();
         return bubble;
       }
 
       appendMessage(config.welcomeMessage, "bot");
 
       function sendMessage() {
+
         if (isLoading || !input.value.trim()) return;
 
         var text = input.value.trim();
@@ -272,8 +253,11 @@ animation:bounce 1.4s infinite ease-in-out both;
         sendBtn.classList.remove("active");
 
         var botBubble = appendMessage("", "bot");
+
         botBubble.innerHTML =
           '<div class="typing"><span></span><span></span><span></span></div>';
+
+        scrollBottom(); // ensure loader visible
 
         isLoading = true;
 
@@ -288,14 +272,19 @@ animation:bounce 1.4s infinite ease-in-out both;
         })
           .then(r => r.json())
           .then(function (data) {
+
             var reply =
               data.text ||
               (data.response && data.response.text) ||
               "No response.";
+
             botBubble.textContent = reply;
+
+            scrollBottom(); // auto scroll after response
           })
           .catch(function () {
             botBubble.textContent = "Server error.";
+            scrollBottom();
           })
           .finally(function () {
             isLoading = false;
