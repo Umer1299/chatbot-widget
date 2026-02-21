@@ -9,7 +9,7 @@
     console.error("Chat Widget: data-bot-id is required.");
     return;
   }
-
+  let history=[];
   const BASE_URL = "https://chatflowai.io/version-test/api/1.1/wf/";
   const CONFIG_URL = BASE_URL + "get-chatbot?chatID=" + botId;
   const MESSAGE_URL = BASE_URL + "create-chat";
@@ -31,6 +31,7 @@
       config.name = config.name || "Chat Assistant";
 
       createSession();
+      loadHistory();
       renderUI();
     } catch (err) {
       console.error("Init error:", err);
@@ -46,10 +47,29 @@
     }
   }
 
+  function loadHistory() {
+  const saved = localStorage.getItem("chat_history_" + botId);
+  if (saved) {
+    history = JSON.parse(saved);
+  }
+}
+  function saveHistory() {
+  localStorage.setItem(
+    "chat_history_" + botId,
+    JSON.stringify(history)
+  );
+}
   function renderUI() {
     const host = document.createElement("div");
     document.body.appendChild(host);
     const shadow = host.attachShadow({ mode: "open" });
+    if (history.length > 0) {
+  history.forEach(msg => {
+    appendMessage(messages, msg.content, msg.role);
+  });
+} else {
+  appendMessage(messages, config.welcomeMessage, "bot");
+}
 
     const isDark = theme === "dark";
     const bgColor = isDark ? "#1f2937" : "#ffffff";
@@ -274,19 +294,25 @@
   }
 
   function appendMessage(container, text, type) {
-    const msg = document.createElement("div");
-    msg.className = "message " + type;
+  const msg = document.createElement("div");
+  msg.className = "message " + type;
 
-    const bubble = document.createElement("div");
-    bubble.className = "bubble-msg";
-    bubble.textContent = text;
+  const bubble = document.createElement("div");
+  bubble.className = "bubble-msg";
+  bubble.textContent = text;
 
-    msg.appendChild(bubble);
-    container.appendChild(msg);
-    container.scrollTop = container.scrollHeight;
+  msg.appendChild(bubble);
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
 
-    return bubble;
+  // Save to history (skip loader)
+  if (text && text !== "...") {
+    history.push({ role: type, content: text });
+    saveHistory();
   }
+
+  return bubble;
+}
 
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (m) => ({
@@ -298,3 +324,4 @@
     })[m]);
   }
 })();
+
