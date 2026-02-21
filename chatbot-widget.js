@@ -1,25 +1,19 @@
 (function () {
 
   const scriptTag = document.querySelector('script[data-bot-id]');
-  if (!scriptTag) {
-    console.error("Chat Widget: script tag not found.");
-    return;
-  }
+  if (!scriptTag) return;
 
   const botId = scriptTag.getAttribute("data-bot-id");
   const position = scriptTag.getAttribute("data-position") || "right";
   const theme = scriptTag.getAttribute("data-theme") || "light";
   const autoOpen = scriptTag.getAttribute("data-auto-open") === "true";
 
-  if (!botId) {
-    console.error("Chat Widget: data-bot-id missing.");
-    return;
-  }
+  if (!botId) return;
 
   let history = [];
   let sessionId = null;
-  let isLoading = false;
   let config = {};
+  let isLoading = false;
 
   const BASE_URL = "https://chatflowai.io/version-test/api/1.1/wf/";
   const CONFIG_URL = BASE_URL + "get-chatbot?chatID=" + botId;
@@ -28,24 +22,19 @@
   init();
 
   async function init() {
-    try {
-      const res = await fetch(CONFIG_URL);
-      const json = await res.json();
-      config = json.response || json || {};
+    const res = await fetch(CONFIG_URL);
+    const json = await res.json();
+    config = json.response || json || {};
 
-      config.primaryColor ||= "#10b981";
-      config.name ||= "Chat Assistant";
-      config.welcomeMessage ||= "Hello!";
-      config.iconUrl = config.iconUrl || config.icon_url || null;
-      config.starterPrompts ||= [];
+    config.primaryColor ||= "#10b981";
+    config.name ||= "Chat Assistant";
+    config.welcomeMessage ||= "Hello!";
+    config.iconUrl = config.iconUrl || config.icon_url || null;
+    config.starterPrompts ||= [];
 
-      createSession();
-      loadHistory();
-      renderUI();
-    } catch (err) {
-      console.error("Init failed:", err);
-      renderFallback();
-    }
+    createSession();
+    loadHistory();
+    renderUI();
   }
 
   function createSession() {
@@ -70,175 +59,232 @@
   }
 
   function renderUI() {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
 
-    container.innerHTML = `
-      <div id="chat-bubble" style="
-        position:fixed;
-        bottom:20px;
-        ${position === "left" ? "left:20px;" : "right:20px;"}
-        width:60px;height:60px;
-        border-radius:50%;
-        background:${config.primaryColor};
-        display:flex;align-items:center;justify-content:center;
-        cursor:pointer;color:white;
-        box-shadow:0 20px 50px rgba(0,0,0,.2);
-        z-index:99999;
-      ">
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const shadow = host.attachShadow({ mode: "open" });
+
+    const isDark = theme === "dark";
+    const bgColor = isDark ? "#1f2937" : "#ffffff";
+    const chatBg = isDark ? "#111827" : "#f9fafb";
+    const textColor = isDark ? "#ffffff" : "#111827";
+
+    shadow.innerHTML = `
+      <style>
+        *{box-sizing:border-box;font-family:Inter,system-ui,sans-serif;}
+
+        .bubble{
+          position:fixed;
+          bottom:24px;
+          ${position === "left" ? "left:24px;" : "right:24px;"}
+          width:60px;height:60px;
+          border-radius:50%;
+          background:${config.primaryColor};
+          display:flex;align-items:center;justify-content:center;
+          cursor:pointer;color:white;
+          box-shadow:0 20px 50px rgba(0,0,0,.2);
+          transition:transform .25s ease, box-shadow .25s ease;
+          z-index:9999;
+        }
+
+        .bubble:hover{
+          transform:scale(1.08);
+          box-shadow:0 25px 60px rgba(0,0,0,.25);
+        }
+
+        .bubble img{
+          width:26px;height:26px;object-fit:contain;
+        }
+
+        .window{
+          position:fixed;
+          bottom:100px;
+          ${position === "left" ? "left:24px;" : "right:24px;"}
+          width:360px;height:550px;
+          background:${bgColor};
+          border-radius:18px;
+          box-shadow:0 30px 80px rgba(0,0,0,.2);
+          display:flex;flex-direction:column;
+          overflow:hidden;
+          opacity:0;visibility:hidden;
+          transform:translateY(18px) scale(.96);
+          transition:all .35s cubic-bezier(.22,1,.36,1);
+        }
+
+        .window.open{
+          opacity:1;visibility:visible;
+          transform:translateY(0) scale(1);
+        }
+
+        .header{
+          padding:16px;
+          background:${config.primaryColor};
+          color:white;font-weight:600;
+        }
+
+        .messages{
+          flex:1;padding:16px;
+          overflow-y:auto;
+          background:${chatBg};
+        }
+
+        .message{margin-bottom:12px;display:flex;}
+        .user{justify-content:flex-end;}
+        .bot{justify-content:flex-start;}
+
+        .bubble-msg{
+          max-width:75%;
+          padding:12px 16px;
+          border-radius:18px;
+          font-size:14px;
+        }
+
+        .user .bubble-msg{
+          background:${config.primaryColor};
+          color:white;
+          border-bottom-right-radius:6px;
+        }
+
+        .bot .bubble-msg{
+          background:${bgColor};
+          color:${textColor};
+          border-bottom-left-radius:6px;
+          box-shadow:0 5px 15px rgba(0,0,0,.05);
+        }
+
+        .input-area{
+          padding:12px;
+          border-top:1px solid #eee;
+          display:flex;
+        }
+
+        input{
+          flex:1;
+          padding:10px 14px;
+          border-radius:999px;
+          border:1px solid #ddd;
+          outline:none;
+        }
+
+        .send-btn{
+          margin-left:8px;
+          width:42px;height:42px;
+          border-radius:50%;
+          border:none;
+          background:${config.primaryColor};
+          color:white;
+          display:flex;align-items:center;justify-content:center;
+          cursor:pointer;
+          opacity:.4;
+          transition:opacity .2s;
+        }
+
+        .send-btn.active{opacity:1;}
+      </style>
+
+      <div class="bubble">
         ${config.iconUrl
-          ? `<img src="${config.iconUrl}" style="width:26px;height:26px;" onerror="this.remove()" />`
+          ? `<img src="${config.iconUrl}" onerror="this.remove()" />`
           : "💬"}
       </div>
 
-      <div id="chat-window" style="
-        display:none;
-        position:fixed;
-        bottom:90px;
-        ${position === "left" ? "left:20px;" : "right:20px;"}
-        width:360px;height:520px;
-        background:white;
-        border-radius:16px;
-        box-shadow:0 30px 80px rgba(0,0,0,.2);
-        flex-direction:column;
-        overflow:hidden;
-        z-index:99999;
-      ">
-        <div style="
-          background:${config.primaryColor};
-          color:white;
-          padding:14px;
-          font-weight:600;
-        ">${config.name}</div>
-
-        <div id="chat-messages" style="
-          flex:1;
-          padding:14px;
-          overflow-y:auto;
-        "></div>
-
-        <div style="display:flex;padding:10px;border-top:1px solid #eee;">
-          <input id="chat-input" placeholder="Type message..." style="
-            flex:1;
-            padding:8px 12px;
-            border-radius:999px;
-            border:1px solid #ddd;
-          "/>
-          <button id="chat-send" disabled style="
-            margin-left:8px;
-            width:40px;height:40px;
-            border-radius:50%;
-            border:none;
-            background:${config.primaryColor};
-            color:white;
-            cursor:pointer;
-          ">➤</button>
+      <div class="window">
+        <div class="header">${config.name}</div>
+        <div class="messages"></div>
+        <div class="input-area">
+          <input placeholder="Type message..." />
+          <button class="send-btn">➤</button>
         </div>
       </div>
     `;
 
-    const bubble = document.getElementById("chat-bubble");
-    const windowEl = document.getElementById("chat-window");
-    const messages = document.getElementById("chat-messages");
-    const input = document.getElementById("chat-input");
-    const sendBtn = document.getElementById("chat-send");
+    const bubble = shadow.querySelector(".bubble");
+    const windowEl = shadow.querySelector(".window");
+    const messages = shadow.querySelector(".messages");
+    const input = shadow.querySelector("input");
+    const sendBtn = shadow.querySelector(".send-btn");
 
     bubble.onclick = () => {
-      windowEl.style.display =
-        windowEl.style.display === "flex" ? "none" : "flex";
+      windowEl.classList.toggle("open");
+      bubble.textContent = windowEl.classList.contains("open") ? "↓" : "💬";
     };
 
-    input.addEventListener("input", () => {
-      sendBtn.disabled = !input.value.trim();
+    input.addEventListener("input",()=>{
+      if(input.value.trim()){
+        sendBtn.classList.add("active");
+      } else {
+        sendBtn.classList.remove("active");
+      }
     });
 
     sendBtn.onclick = sendMessage;
-    input.addEventListener("keypress", e => {
-      if (e.key === "Enter" && !sendBtn.disabled)
-        sendMessage();
+    input.addEventListener("keypress",e=>{
+      if(e.key==="Enter" && input.value.trim()) sendMessage();
     });
 
-    if (history.length === 0) {
-      appendMessage(messages, config.welcomeMessage, "bot");
+    if(history.length){
+      history.forEach(m=>renderMessage(m.content,m.role,false));
     } else {
-      history.forEach(m =>
-        appendMessage(messages, m.content, m.role)
-      );
+      renderMessage(config.welcomeMessage,"bot",true);
     }
 
-    function appendMessage(container, text, role) {
-      const div = document.createElement("div");
-      div.style.marginBottom = "10px";
-      div.style.textAlign = role === "user" ? "right" : "left";
-
-      const bubble = document.createElement("div");
-      bubble.style.display = "inline-block";
-      bubble.style.padding = "8px 12px";
-      bubble.style.borderRadius = "16px";
-      bubble.style.background =
-        role === "user"
-          ? config.primaryColor
-          : "#f1f1f1";
-      bubble.style.color =
-        role === "user" ? "white" : "black";
-      bubble.textContent = text;
-
-      div.appendChild(bubble);
-      container.appendChild(div);
-      container.scrollTop = container.scrollHeight;
-
-      history.push({ role, content: text });
-      saveHistory();
+    function scrollBottom(){
+      messages.scrollTop = messages.scrollHeight;
     }
 
-    function sendMessage() {
-      if (isLoading) return;
+    function renderMessage(text,role,save){
+      const msg=document.createElement("div");
+      msg.className="message "+role;
+      const bubble=document.createElement("div");
+      bubble.className="bubble-msg";
+      bubble.textContent=text;
+      msg.appendChild(bubble);
+      messages.appendChild(msg);
+      scrollBottom();
 
-      const text = input.value.trim();
-      if (!text) return;
+      if(save){
+        history.push({role,content:text});
+        saveHistory();
+      }
+    }
 
-      appendMessage(messages, text, "user");
-      input.value = "";
-      sendBtn.disabled = true;
-      isLoading = true;
+    async function sendMessage(){
+      if(isLoading) return;
+      const text=input.value.trim();
+      if(!text) return;
 
-      fetch(MESSAGE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ botId, message: text, sessionId })
-      })
-        .then(res => res.json())
-        .then(data => {
-          const reply =
-            data.text ||
-            data.response?.text ||
-            "No response.";
-          appendMessage(messages, reply, "bot");
-        })
-        .catch(() => {
-          appendMessage(messages, "Server error.", "bot");
-        })
-        .finally(() => {
-          isLoading = false;
+      renderMessage(text,"user",true);
+      input.value="";
+      sendBtn.classList.remove("active");
+      isLoading=true;
+
+      const typingBubble=document.createElement("div");
+      typingBubble.className="message bot";
+      typingBubble.innerHTML='<div class="bubble-msg">Typing...</div>';
+      messages.appendChild(typingBubble);
+      scrollBottom();
+
+      try{
+        const res=await fetch(MESSAGE_URL,{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({botId,message:text,sessionId})
         });
-    }
-  }
 
-  function renderFallback() {
-    const bubble = document.createElement("div");
-    bubble.innerHTML = "💬";
-    bubble.style.position = "fixed";
-    bubble.style.bottom = "20px";
-    bubble.style.right = "20px";
-    bubble.style.width = "60px";
-    bubble.style.height = "60px";
-    bubble.style.background = "#10b981";
-    bubble.style.borderRadius = "50%";
-    bubble.style.display = "flex";
-    bubble.style.alignItems = "center";
-    bubble.style.justifyContent = "center";
-    bubble.style.color = "white";
-    document.body.appendChild(bubble);
+        const data=await res.json();
+        const reply=data.text||data.response?.text||"No response.";
+
+        typingBubble.querySelector(".bubble-msg").textContent=reply;
+
+        history.push({role:"bot",content:reply});
+        saveHistory();
+      }catch{
+        typingBubble.querySelector(".bubble-msg").textContent="Server error.";
+      }
+
+      isLoading=false;
+      scrollBottom();
+    }
   }
 
 })();
