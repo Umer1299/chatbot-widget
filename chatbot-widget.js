@@ -6,7 +6,6 @@
   const botId = scriptTag.getAttribute("data-bot-id");
   const position = scriptTag.getAttribute("data-position") || "right";
   const theme = scriptTag.getAttribute("data-theme") || "light";
-  const autoOpen = scriptTag.getAttribute("data-auto-open") === "true";
 
   if (!botId) return;
 
@@ -30,10 +29,8 @@
     config.name ||= "Chat Assistant";
     config.welcomeMessage ||= "Hello!";
     config.iconUrl = config.iconUrl || config.icon_url || null;
-    config.starterPrompts ||= [];
 
     createSession();
-    loadHistory();
     renderUI();
   }
 
@@ -46,28 +43,11 @@
     }
   }
 
-  function loadHistory() {
-    const saved = localStorage.getItem("chat_history_" + botId);
-    if (saved) history = JSON.parse(saved);
-  }
-
-  function saveHistory() {
-    localStorage.setItem(
-      "chat_history_" + botId,
-      JSON.stringify(history)
-    );
-  }
-
   function renderUI() {
 
     const host = document.createElement("div");
     document.body.appendChild(host);
     const shadow = host.attachShadow({ mode: "open" });
-
-    const isDark = theme === "dark";
-    const bgColor = isDark ? "#1f2937" : "#ffffff";
-    const chatBg = isDark ? "#111827" : "#f9fafb";
-    const textColor = isDark ? "#ffffff" : "#111827";
 
     shadow.innerHTML = `
       <style>
@@ -83,14 +63,11 @@
           display:flex;align-items:center;justify-content:center;
           cursor:pointer;color:white;
           box-shadow:0 20px 50px rgba(0,0,0,.2);
-          transition:transform .25s ease, box-shadow .25s ease;
+          transition:transform .25s ease;
           z-index:9999;
         }
 
-        .bubble:hover{
-          transform:scale(1.08);
-          box-shadow:0 25px 60px rgba(0,0,0,.25);
-        }
+        .bubble:hover{ transform:scale(1.08); }
 
         .bubble img{
           width:26px;height:26px;object-fit:contain;
@@ -100,8 +77,8 @@
           position:fixed;
           bottom:100px;
           ${position === "left" ? "left:24px;" : "right:24px;"}
-          width:360px;height:550px;
-          background:${bgColor};
+          width:360px;height:500px;
+          background:#fff;
           border-radius:18px;
           box-shadow:0 30px 80px rgba(0,0,0,.2);
           display:flex;flex-direction:column;
@@ -125,31 +102,6 @@
         .messages{
           flex:1;padding:16px;
           overflow-y:auto;
-          background:${chatBg};
-        }
-
-        .message{margin-bottom:12px;display:flex;}
-        .user{justify-content:flex-end;}
-        .bot{justify-content:flex-start;}
-
-        .bubble-msg{
-          max-width:75%;
-          padding:12px 16px;
-          border-radius:18px;
-          font-size:14px;
-        }
-
-        .user .bubble-msg{
-          background:${config.primaryColor};
-          color:white;
-          border-bottom-right-radius:6px;
-        }
-
-        .bot .bubble-msg{
-          background:${bgColor};
-          color:${textColor};
-          border-bottom-left-radius:6px;
-          box-shadow:0 5px 15px rgba(0,0,0,.05);
         }
 
         .input-area{
@@ -163,29 +115,21 @@
           padding:10px 14px;
           border-radius:999px;
           border:1px solid #ddd;
-          outline:none;
         }
 
-        .send-btn{
+        button{
           margin-left:8px;
           width:42px;height:42px;
           border-radius:50%;
           border:none;
           background:${config.primaryColor};
           color:white;
-          display:flex;align-items:center;justify-content:center;
           cursor:pointer;
-          opacity:.4;
-          transition:opacity .2s;
         }
-
-        .send-btn.active{opacity:1;}
       </style>
 
       <div class="bubble">
-        ${config.iconUrl
-          ? `<img src="${config.iconUrl}" onerror="this.remove()" />`
-          : "💬"}
+        <span class="icon-content"></span>
       </div>
 
       <div class="window">
@@ -193,76 +137,78 @@
         <div class="messages"></div>
         <div class="input-area">
           <input placeholder="Type message..." />
-          <button class="send-btn">➤</button>
+          <button>➤</button>
         </div>
       </div>
     `;
 
     const bubble = shadow.querySelector(".bubble");
+    const iconContent = shadow.querySelector(".icon-content");
     const windowEl = shadow.querySelector(".window");
     const messages = shadow.querySelector(".messages");
     const input = shadow.querySelector("input");
-    const sendBtn = shadow.querySelector(".send-btn");
+    const sendBtn = shadow.querySelector("button");
 
+    // SET ICON PROPERLY
+    if (config.iconUrl) {
+      const img = document.createElement("img");
+      img.src = config.iconUrl;
+      img.onerror = () => img.remove();
+      iconContent.appendChild(img);
+    } else {
+      iconContent.textContent = "💬";
+    }
+
+    // TOGGLE
     bubble.onclick = () => {
-      windowEl.classList.toggle("open");
-      bubble.textContent = windowEl.classList.contains("open") ? "↓" : "💬";
-    };
+      const isOpen = windowEl.classList.toggle("open");
 
-    input.addEventListener("input",()=>{
-      if(input.value.trim()){
-        sendBtn.classList.add("active");
+      if (isOpen) {
+        iconContent.textContent = "↓";
       } else {
-        sendBtn.classList.remove("active");
+        iconContent.innerHTML = "";
+        if (config.iconUrl) {
+          const img = document.createElement("img");
+          img.src = config.iconUrl;
+          img.onerror = () => img.remove();
+          iconContent.appendChild(img);
+        } else {
+          iconContent.textContent = "💬";
+        }
       }
-    });
+    };
 
     sendBtn.onclick = sendMessage;
     input.addEventListener("keypress",e=>{
-      if(e.key==="Enter" && input.value.trim()) sendMessage();
+      if(e.key==="Enter") sendMessage();
     });
-
-    if(history.length){
-      history.forEach(m=>renderMessage(m.content,m.role,false));
-    } else {
-      renderMessage(config.welcomeMessage,"bot",true);
-    }
 
     function scrollBottom(){
       messages.scrollTop = messages.scrollHeight;
     }
 
-    function renderMessage(text,role,save){
-      const msg=document.createElement("div");
-      msg.className="message "+role;
-      const bubble=document.createElement("div");
-      bubble.className="bubble-msg";
-      bubble.textContent=text;
-      msg.appendChild(bubble);
-      messages.appendChild(msg);
+    function appendMessage(text,role){
+      const div=document.createElement("div");
+      div.style.marginBottom="10px";
+      div.style.textAlign=role==="user"?"right":"left";
+      div.innerHTML=\`<div style="
+        display:inline-block;
+        padding:8px 12px;
+        border-radius:16px;
+        background:\${role==="user"?config.primaryColor:"#f1f1f1"};
+        color:\${role==="user"?"white":"black"};
+      ">\${text}</div>\`;
+      messages.appendChild(div);
       scrollBottom();
-
-      if(save){
-        history.push({role,content:text});
-        saveHistory();
-      }
     }
 
     async function sendMessage(){
-      if(isLoading) return;
       const text=input.value.trim();
-      if(!text) return;
+      if(!text||isLoading) return;
 
-      renderMessage(text,"user",true);
+      appendMessage(text,"user");
       input.value="";
-      sendBtn.classList.remove("active");
       isLoading=true;
-
-      const typingBubble=document.createElement("div");
-      typingBubble.className="message bot";
-      typingBubble.innerHTML='<div class="bubble-msg">Typing...</div>';
-      messages.appendChild(typingBubble);
-      scrollBottom();
 
       try{
         const res=await fetch(MESSAGE_URL,{
@@ -273,18 +219,14 @@
 
         const data=await res.json();
         const reply=data.text||data.response?.text||"No response.";
-
-        typingBubble.querySelector(".bubble-msg").textContent=reply;
-
-        history.push({role:"bot",content:reply});
-        saveHistory();
+        appendMessage(reply,"bot");
       }catch{
-        typingBubble.querySelector(".bubble-msg").textContent="Server error.";
+        appendMessage("Server error.","bot");
       }
 
       isLoading=false;
-      scrollBottom();
     }
+
   }
 
 })();
