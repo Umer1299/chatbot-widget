@@ -28,10 +28,14 @@
       const json = await res.json();
       config = json.response || json;
 
-      config.primaryColor ||= "#10b981";
-      config.welcomeMessage ||= "Hello!";
-      config.name ||= "Chat Assistant";
-      config.starterPrompts ||= [];
+      // Normalize fields safely
+      config.primaryColor = config.primaryColor || "#10b981";
+      config.welcomeMessage = config.welcomeMessage || "Hello!";
+      config.name = config.name || "Chat Assistant";
+      config.iconUrl =
+        config.iconUrl || config.icon_url || null;
+      config.starterPrompts =
+        config.starterPrompts || config.starter_prompts || [];
 
       createSession();
       loadHistory();
@@ -56,7 +60,10 @@
   }
 
   function saveHistory() {
-    localStorage.setItem("chat_history_" + botId, JSON.stringify(history));
+    localStorage.setItem(
+      "chat_history_" + botId,
+      JSON.stringify(history)
+    );
   }
 
   function renderUI() {
@@ -83,16 +90,21 @@
         display:flex;align-items:center;justify-content:center;
         cursor:pointer;color:white;
         box-shadow:0 20px 50px rgba(0,0,0,.2);
-        transition:transform .25s ease;
+        transition:transform .25s ease, box-shadow .25s ease;
         overflow:hidden;
       }
 
-      .bubble-button img {
-        width:26px;height:26px;
+      .bubble-button:hover {
+        transform:scale(1.08);
+        box-shadow:0 25px 60px rgba(0,0,0,.25);
       }
 
-      .bubble-button:hover { transform:scale(1.08); }
       .bubble-button:active { transform:scale(.92); }
+
+      .bubble-button img {
+        width:26px;height:26px;
+        object-fit:contain;
+      }
 
       .window {
         position:fixed;
@@ -206,8 +218,8 @@
     </style>
 
     <div class="bubble-button">
-      ${config.iconUrl 
-        ? `<img src="${config.iconUrl}" />`
+      ${config.iconUrl
+        ? `<img src="${config.iconUrl}" onerror="this.remove()" />`
         : "💬"}
     </div>
 
@@ -238,13 +250,11 @@
       messages.scrollTop = messages.scrollHeight;
     }
 
-    // Toggle
     bubble.onclick = ()=>{
       windowEl.classList.toggle("open");
       scrollBottom();
     };
 
-    // Enable / disable send button
     input.addEventListener("input", ()=>{
       sendBtn.disabled = !input.value.trim();
     });
@@ -254,7 +264,6 @@
       if(e.key==="Enter" && !sendBtn.disabled) sendMessage();
     });
 
-    // Starter prompts
     if(config.starterPrompts.length && history.length===0){
       config.starterPrompts.forEach(text=>{
         const btn=document.createElement("button");
@@ -268,7 +277,6 @@
       });
     }
 
-    // Render history
     if(history.length){
       starterContainer.remove();
       history.forEach(msg=>renderMessage(messages,msg.content,msg.role,false));
