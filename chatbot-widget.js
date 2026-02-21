@@ -83,6 +83,10 @@ overflow:hidden;
 .bubble:hover{transform:scale(1.08);}
 .bubble-icon{width:100%;height:100%;object-fit:cover;}
 .default-icon{font-size:26px;color:white;}
+.toggle-icon{width:24px;height:24px;fill:white;display:none;}
+.bubble.open .bubble-icon,
+.bubble.open .default-icon{display:none;}
+.bubble.open .toggle-icon{display:block;}
 
 .window{
 position:fixed;
@@ -200,6 +204,11 @@ animation:bounce 1.4s infinite ease-in-out both;
 </div>
 `;
 
+      shadow.querySelector(".bubble").insertAdjacentHTML(
+        "beforeend",
+        '<svg class="toggle-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>'
+      );
+
       var bubble = shadow.querySelector(".bubble");
       var windowEl = shadow.querySelector(".window");
       var messages = shadow.querySelector(".messages");
@@ -212,6 +221,7 @@ animation:bounce 1.4s infinite ease-in-out both;
 
       bubble.onclick = function () {
         windowEl.classList.toggle("open");
+        bubble.classList.toggle("open", windowEl.classList.contains("open"));
         setTimeout(scrollBottom, 200);
       };
 
@@ -239,6 +249,24 @@ animation:bounce 1.4s infinite ease-in-out both;
         messages.appendChild(msg);
         scrollBottom();
         return bubble;
+      }
+
+      function typeText(target, text, delay) {
+        var index = 0;
+        target.textContent = "";
+
+        function step() {
+          if (index >= text.length) {
+            scrollBottom();
+            return;
+          }
+          target.textContent += text.charAt(index);
+          index += 1;
+          scrollBottom();
+          setTimeout(step, delay);
+        }
+
+        step();
       }
 
       appendMessage(config.welcomeMessage, "bot");
@@ -278,9 +306,7 @@ animation:bounce 1.4s infinite ease-in-out both;
               (data.response && data.response.text) ||
               "No response.";
 
-            botBubble.textContent = reply;
-
-            scrollBottom(); // auto scroll after response
+            typeText(botBubble, reply, 16);
           })
           .catch(function () {
             botBubble.textContent = "Server error.";
