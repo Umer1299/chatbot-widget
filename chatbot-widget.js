@@ -33,7 +33,26 @@
         config.name = config.name || "Chat Assistant";
         config.welcomeMessage = config.welcomeMessage || "Hello!";
         config.iconUrl = config.iconUrl || null;
-        config.starterPrompts = config.starterPrompts || [];
+
+        // Normalize starter prompts
+        var prompts = config.starterPrompts;
+
+        if (!prompts) {
+          config.starterPrompts = [];
+        } else if (typeof prompts === "string") {
+          try {
+            var parsed = JSON.parse(prompts);
+            if (Array.isArray(parsed)) {
+              config.starterPrompts = parsed;
+            } else {
+              config.starterPrompts = prompts.split(",");
+            }
+          } catch (e) {
+            config.starterPrompts = prompts.split(",");
+          }
+        } else {
+          config.starterPrompts = prompts;
+        }
 
         createSession();
         loadHistory();
@@ -70,7 +89,6 @@
       var isDark = theme === "dark";
 
       var iconHTML = "";
-
       if (config.iconUrl) {
         var fullIcon = config.iconUrl.indexOf("http") === 0
           ? config.iconUrl
@@ -166,39 +184,14 @@ border-bottom-left-radius:6px;
 box-shadow:0 5px 15px rgba(0,0,0,.05);
 }
 
-.input-area{
-padding:14px;
-border-top:1px solid #eee;
-display:flex;
-background:${isDark ? "#1f2937" : "#ffffff"};
-}
-
-input{
-flex:1;padding:12px 14px;
-border-radius:999px;border:1px solid #ddd;
-outline:none;font-size:14px;
-}
-
-.send-btn{
-margin-left:8px;width:44px;height:44px;
-border-radius:50%;border:none;
-background:${config.primaryColor};
-display:flex;align-items:center;justify-content:center;
-cursor:pointer;opacity:.5;
-}
-.send-btn.active{opacity:1;}
-
-.typing{display:inline-flex;gap:4px;}
-.typing span{
-width:6px;height:6px;background:#999;
-border-radius:50%;
-animation:bounce 1.4s infinite ease-in-out both;
-}
-.typing span:nth-child(1){animation-delay:-0.32s;}
-.typing span:nth-child(2){animation-delay:-0.16s;}
-@keyframes bounce{
-0%,80%,100%{transform:scale(0);}
-40%{transform:scale(1);}
+.prompt{
+background:#eee;
+padding:8px 12px;
+border-radius:16px;
+cursor:pointer;
+font-size:13px;
+margin:6px 6px 0 0;
+display:inline-block;
 }
 </style>
 
@@ -209,11 +202,7 @@ animation:bounce 1.4s infinite ease-in-out both;
 <div class="messages"></div>
 <div class="input-area">
 <input placeholder="Type a message..." />
-<button class="send-btn">
-<svg width="18" height="18" fill="white" viewBox="0 0 24 24">
-<path d="M2 21l21-9L2 3v7l15 2-15 2z"/>
-</svg>
-</button>
+<button class="send-btn">Send</button>
 </div>
 </div>
 `;
@@ -229,18 +218,41 @@ animation:bounce 1.4s infinite ease-in-out both;
         bubble.innerHTML = open ? "&#8595;" : iconHTML;
       };
 
-      input.addEventListener("input", function () {
-        if (input.value.trim())
-          sendBtn.classList.add("active");
-        else
-          sendBtn.classList.remove("active");
-      });
+      // Welcome + Starter Prompts
+      if (!history || history.length === 0) {
+        appendMessage(config.welcomeMessage, "bot", true);
+        renderStarterPrompts();
+      } else {
+        history.forEach(function (m) {
+          appendMessage(m.content, m.role, false);
+        });
+      }
 
-      sendBtn.onclick = sendMessage;
+      function renderStarterPrompts() {
+        if (!config.starterPrompts.length) return;
 
-      input.addEventListener("keypress", function (e) {
-        if (e.key === "Enter") sendMessage();
-      });
+        var wrapper = document.createElement("div");
+        wrapper.style.marginTop = "8px";
+
+        config.starterPrompts.forEach(function (text) {
+
+          if (!text) return;
+
+          var btn = document.createElement("div");
+          btn.className = "prompt";
+          btn.textContent = text.trim();
+
+          btn.onclick = function () {
+            input.value = text.trim();
+            sendMessage();
+            wrapper.remove();
+          };
+
+          wrapper.appendChild(btn);
+        });
+
+        messages.appendChild(wrapper);
+      }
 
       function appendMessage(text, role, save) {
         var msg = document.createElement("div");
@@ -258,6 +270,12 @@ animation:bounce 1.4s infinite ease-in-out both;
         return bubble;
       }
 
+      sendBtn.onclick = sendMessage;
+
+      input.addEventListener("keypress", function (e) {
+        if (e.key === "Enter") sendMessage();
+      });
+
       function sendMessage() {
 
         if (isLoading) return;
@@ -267,12 +285,9 @@ animation:bounce 1.4s infinite ease-in-out both;
 
         appendMessage(text, "user", true);
         input.value = "";
-        sendBtn.classList.remove("active");
         isLoading = true;
 
-        var botBubble = appendMessage("", "bot", false);
-        botBubble.innerHTML =
-          '<div class="typing"><span></span><span></span><span></span></div>';
+        var botBubble = appendMessage("Typing...", "bot", false);
 
         fetch(MESSAGE_URL, {
           method: "POST",
