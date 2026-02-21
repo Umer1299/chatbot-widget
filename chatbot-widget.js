@@ -13,7 +13,7 @@
 
   const BASE_URL = "https://chatflowai.io/version-test/api/1.1/wf/";
   const CONFIG_URL =
-    BASE_URL + "get-chatbot-config?chatID=" + botId;
+    BASE_URL + "get-chatbot?chatID=" + botId;
   const MESSAGE_URL = BASE_URL + "create-chat";
 
   let config = null;
@@ -297,3 +297,4 @@
     })[m]);
   }
 })();
+
