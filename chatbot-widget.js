@@ -32,6 +32,7 @@
         config.name = config.name || "Chat Assistant";
         config.welcomeMessage = config.welcomeMessage || "Hello!";
         config.iconUrl = config.iconUrl || null;
+        config.starterPrompts = config.starterPrompts || config.starterprompts || [];
 
         createSession();
         renderUI();
@@ -118,6 +119,12 @@ color:white;font-weight:600;
 flex:1;padding:16px;
 overflow-y:auto;
 background:${isDark ? "#1f2937" : "#f3f4f6"};
+}
+
+.starter-prompts{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+.starter-prompt{
+padding:8px 12px;border:1px solid #d1d5db;border-radius:999px;
+background:white;color:#111;font-size:12px;cursor:pointer;
 }
 
 .message{margin-bottom:12px;display:flex;}
@@ -269,6 +276,48 @@ animation:bounce 1.4s infinite ease-in-out both;
         step();
       }
 
+      function getPromptText(prompt) {
+        if (typeof prompt === "string") return prompt;
+        if (prompt && typeof prompt === "object") {
+          return prompt.text || prompt.label || prompt.prompt || "";
+        }
+        return "";
+      }
+
+      function renderStarterPrompts() {
+        var promptList = Array.isArray(config.starterPrompts)
+          ? config.starterPrompts
+          : [];
+
+        if (!promptList.length) return;
+
+        var wrap = document.createElement("div");
+        wrap.className = "starter-prompts";
+
+        promptList.forEach(function (item) {
+          var text = getPromptText(item).trim();
+          if (!text) return;
+
+          var button = document.createElement("button");
+          button.type = "button";
+          button.className = "starter-prompt";
+          button.textContent = text;
+          button.addEventListener("click", function () {
+            if (isLoading) return;
+            input.value = text;
+            sendBtn.classList.add("active");
+            sendMessage();
+          });
+          wrap.appendChild(button);
+        });
+
+        if (wrap.childNodes.length) {
+          messages.appendChild(wrap);
+          scrollBottom();
+        }
+      }
+
+      renderStarterPrompts();
       appendMessage(config.welcomeMessage, "bot");
 
       function sendMessage() {
@@ -326,3 +375,4 @@ animation:bounce 1.4s infinite ease-in-out both;
   }
 
 })();
+
