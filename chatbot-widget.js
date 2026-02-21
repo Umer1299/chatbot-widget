@@ -2,42 +2,44 @@
 
   function initWidget() {
 
-    const scriptTag =
+    var scriptTag =
       document.currentScript ||
       document.querySelector('script[data-bot-id]');
 
     if (!scriptTag) return;
 
-    const botId = scriptTag.getAttribute("data-bot-id");
-    const position = scriptTag.getAttribute("data-position") || "right";
+    var botId = scriptTag.getAttribute("data-bot-id");
+    var position = scriptTag.getAttribute("data-position") || "right";
 
     if (!botId) return;
 
-    let config = {};
-    let sessionId = null;
+    var config = {};
+    var sessionId = null;
 
-    const BASE_URL = "https://chatflowai.io/version-test/api/1.1/wf/";
-    const CONFIG_URL = BASE_URL + "get-chatbot?chatID=" + botId;
+    var BASE_URL = "https://chatflowai.io/version-test/api/1.1/wf/";
+    var CONFIG_URL = BASE_URL + "get-chatbot?chatID=" + botId;
 
     fetch(CONFIG_URL)
-      .then(res => res.json())
-      .then(json => {
+      .then(function(res){ return res.json(); })
+      .then(function(json){
+
         config = json.response || json || {};
-        config.primaryColor ||= "#10b981";
-        config.name ||= "Chat Assistant";
+        config.primaryColor = config.primaryColor || "#10b981";
+        config.name = config.name || "Chat Assistant";
         config.iconUrl = config.iconUrl || config.icon_url || null;
+
         renderUI();
       });
 
     function renderUI() {
 
-      const host = document.createElement("div");
+      var host = document.createElement("div");
       document.body.appendChild(host);
-      const shadow = host.attachShadow({ mode: "open" });
+      var shadow = host.attachShadow({ mode: "open" });
 
       shadow.innerHTML = `
         <style>
-          *{box-sizing:border-box;font-family:Inter,system-ui,sans-serif;}
+          *{box-sizing:border-box;font-family:Arial,sans-serif;}
 
           .bubble{
             position:fixed;
@@ -55,14 +57,7 @@
 
           .bubble:hover{ transform:scale(1.08); }
 
-          .icon{
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            transition:transform .3s ease;
-          }
-
-          .bubble img{
+          .icon img{
             width:26px;height:26px;
           }
 
@@ -76,7 +71,7 @@
             box-shadow:0 30px 80px rgba(0,0,0,.2);
             opacity:0;visibility:hidden;
             transform:translateY(20px) scale(.95);
-            transition:all .35s cubic-bezier(.22,1,.36,1);
+            transition:all .35s ease;
             overflow:hidden;
             display:flex;
             flex-direction:column;
@@ -105,41 +100,42 @@
         </div>
       `;
 
-      const bubble = shadow.querySelector(".bubble");
-      const icon = shadow.querySelector(".icon");
-      const windowEl = shadow.querySelector(".window");
+      var bubble = shadow.querySelector(".bubble");
+      var icon = shadow.querySelector(".icon");
+      var windowEl = shadow.querySelector(".window");
 
-      // SET ICON PROPERLY
-      function setIcon() {
+      function setIcon(){
         icon.innerHTML = "";
 
-        if (config.iconUrl) {
-          const img = document.createElement("img");
+        if(config.iconUrl){
+          var img = document.createElement("img");
           img.src = config.iconUrl;
-          img.onerror = () => {
-            icon.textContent = "💬";
+          img.onerror = function(){
+            icon.innerHTML = "&#128172;"; // chat emoji safe HTML
           };
           icon.appendChild(img);
         } else {
-          icon.textContent = "💬";
+          icon.innerHTML = "&#128172;"; // 💬 safe HTML entity
         }
       }
 
       setIcon();
 
-      bubble.onclick = () => {
-        const isOpen = windowEl.classList.toggle("open");
+      bubble.onclick = function(){
+        var isOpen = windowEl.classList.toggle("open");
 
-        if (isOpen) {
-          icon.innerHTML = "↓";
+        if(isOpen){
+          icon.innerHTML = "&#8595;"; // ↓ safe HTML entity
         } else {
           setIcon();
         }
       };
+
     }
+
   }
 
-  if (document.readyState === "loading") {
+  if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", initWidget);
   } else {
     initWidget();
