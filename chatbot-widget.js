@@ -28,7 +28,7 @@
       .then(function (r) { return r.json(); })
       .then(function (json) {
 
-        config = json.response || json || {};
+        config = json.response || {};
         config.primaryColor = config.primaryColor || "#10b981";
         config.name = config.name || "Chat Assistant";
         config.welcomeMessage = config.welcomeMessage || "Hello!";
@@ -69,41 +69,43 @@
 
       var isDark = theme === "dark";
 
+      var iconHTML = "";
+
+      if (config.iconUrl) {
+        var fullIcon = config.iconUrl.indexOf("http") === 0
+          ? config.iconUrl
+          : "https:" + config.iconUrl;
+
+        iconHTML =
+          '<img src="' + fullIcon + '" class="bubble-icon">';
+      } else {
+        iconHTML = '<span class="default-icon">💬</span>';
+      }
+
       shadow.innerHTML = `
 <style>
 *{box-sizing:border-box;font-family:Inter,Arial,sans-serif;}
 
 .bubble{
-position: fixed;
-  bottom: 24px;
-  ${position === "left" ? "left:24px;" : "right:24px;"}
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: ${config.primaryColor};
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  cursor:pointer;
-  box-shadow:0 20px 50px rgba(0,0,0,.2);
-  z-index:9999;
-  transition: transform .25s ease;
-  overflow:hidden;
-  padding:0;
+position:fixed;
+bottom:24px;
+${position === "left" ? "left:24px;" : "right:24px;"}
+width:64px;height:64px;
+border-radius:50%;
+background:${config.primaryColor};
+display:flex;align-items:center;justify-content:center;
+cursor:pointer;
+box-shadow:0 20px 50px rgba(0,0,0,.2);
+z-index:999999;
+transition:all .25s ease;
+overflow:hidden;
 }
 .bubble:hover{transform:scale(1.08);}
-.bubble img.bubble-icon {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;     /* IMPORTANT */
-  border-radius: 50%;
-  display:block;
+.bubble-icon{
+width:100%;height:100%;
+object-fit:cover;border-radius:50%;
 }
-
-.default-icon {
-  font-size:26px;
-  color:white;
-}
+.default-icon{font-size:26px;color:white;}
 
 .window{
 position:fixed;
@@ -172,59 +174,35 @@ background:${isDark ? "#1f2937" : "#ffffff"};
 }
 
 input{
-flex:1;
-padding:12px 14px;
-border-radius:999px;
-border:1px solid #ddd;
-outline:none;
-font-size:14px;
+flex:1;padding:12px 14px;
+border-radius:999px;border:1px solid #ddd;
+outline:none;font-size:14px;
 }
 
 .send-btn{
-margin-left:8px;
-width:44px;height:44px;
-border-radius:50%;
-border:none;
+margin-left:8px;width:44px;height:44px;
+border-radius:50%;border:none;
 background:${config.primaryColor};
 display:flex;align-items:center;justify-content:center;
-cursor:pointer;
-opacity:.5;
+cursor:pointer;opacity:.5;
 }
-.send-btn.active{opacity:1;cursor:pointer;}
+.send-btn.active{opacity:1;}
 
-.typing{
-display:inline-flex;
-gap:4px;
-}
+.typing{display:inline-flex;gap:4px;}
 .typing span{
-width:6px;height:6px;
-background:#999;border-radius:50%;
+width:6px;height:6px;background:#999;
+border-radius:50%;
 animation:bounce 1.4s infinite ease-in-out both;
 }
 .typing span:nth-child(1){animation-delay:-0.32s;}
 .typing span:nth-child(2){animation-delay:-0.16s;}
-
 @keyframes bounce{
 0%,80%,100%{transform:scale(0);}
 40%{transform:scale(1);}
 }
-
-.prompt{
-background:#eee;
-padding:8px 12px;
-border-radius:16px;
-cursor:pointer;
-font-size:13px;
-margin:4px 4px 0 0;
-display:inline-block;
-}
 </style>
 
-<div class="bubble">${
-    config.iconUrl
-      ? <img src="https:${config.iconUrl.replace(/^https?:/, '')}" class="bubble-icon" />
-      : <span class="default-icon">💬</span>
-  }</div>
+<div class="bubble">${iconHTML}</div>
 
 <div class="window">
 <div class="header">${config.name}</div>
@@ -245,74 +223,24 @@ display:inline-block;
       var messages = shadow.querySelector(".messages");
       var input = shadow.querySelector("input");
       var sendBtn = shadow.querySelector(".send-btn");
-      var icon = shadow.querySelector(".icon");
-
-      function setIcon() {
-        icon.innerHTML = "";
-        if (config.iconUrl) {
-          var img = document.createElement("img");
-          img.src = config.iconUrl;
-          img.style.width = "26px";
-          img.style.height = "26px";
-          img.onerror = function () {
-            icon.innerHTML = "&#128172;";
-          };
-          icon.appendChild(img);
-        } else {
-          icon.innerHTML = "&#128172;";
-        }
-      }
-
-      setIcon();
 
       bubble.onclick = function () {
-        var isOpen = windowEl.classList.toggle("open");
-        if (isOpen) icon.innerHTML = "&#8595;";
-        else setIcon();
+        var open = windowEl.classList.toggle("open");
+        bubble.innerHTML = open ? "&#8595;" : iconHTML;
       };
-
-      if (autoOpen) setTimeout(function(){ windowEl.classList.add("open"); }, 1200);
 
       input.addEventListener("input", function () {
-        if (input.value.trim()) sendBtn.classList.add("active");
-        else sendBtn.classList.remove("active");
+        if (input.value.trim())
+          sendBtn.classList.add("active");
+        else
+          sendBtn.classList.remove("active");
       });
 
-      sendBtn.onclick = function () {
-        if (!input.value.trim()) return;
-        sendMessage();
-      };
+      sendBtn.onclick = sendMessage;
 
       input.addEventListener("keypress", function (e) {
-        if (e.key === "Enter" && input.value.trim()) sendMessage();
+        if (e.key === "Enter") sendMessage();
       });
-
-      if (history.length === 0) {
-        appendMessage(config.welcomeMessage, "bot", true);
-        renderPrompts();
-      } else {
-        history.forEach(function (m) {
-          appendMessage(m.content, m.role, false);
-        });
-      }
-
-      function renderPrompts() {
-        config.starterPrompts.forEach(function (p) {
-          var btn = document.createElement("div");
-          btn.className = "prompt";
-          btn.textContent = p;
-          btn.onclick = function () {
-            input.value = p;
-            sendBtn.classList.add("active");
-            sendMessage();
-          };
-          messages.appendChild(btn);
-        });
-      }
-
-      function scrollBottom() {
-        messages.scrollTop = messages.scrollHeight;
-      }
 
       function appendMessage(text, role, save) {
         var msg = document.createElement("div");
@@ -322,23 +250,12 @@ display:inline-block;
         bubble.textContent = text;
         msg.appendChild(bubble);
         messages.appendChild(msg);
-        scrollBottom();
+        messages.scrollTop = messages.scrollHeight;
         if (save) {
           history.push({ role: role, content: text });
           saveHistory();
         }
         return bubble;
-      }
-
-      function typeWriter(el, text) {
-        el.textContent = "";
-        var i = 0;
-        var interval = setInterval(function () {
-          el.textContent += text[i];
-          i++;
-          scrollBottom();
-          if (i >= text.length) clearInterval(interval);
-        }, 15);
       }
 
       function sendMessage() {
@@ -354,9 +271,8 @@ display:inline-block;
         isLoading = true;
 
         var botBubble = appendMessage("", "bot", false);
-
-        botBubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
-        scrollBottom();
+        botBubble.innerHTML =
+          '<div class="typing"><span></span><span></span><span></span></div>';
 
         fetch(MESSAGE_URL, {
           method: "POST",
@@ -370,8 +286,12 @@ display:inline-block;
           .then(function (r) { return r.json(); })
           .then(function (data) {
 
-            var reply = data.text || data.response?.text || "No response.";
-            typeWriter(botBubble, reply);
+            var reply =
+              data.text ||
+              (data.response && data.response.text) ||
+              "No response.";
+
+            botBubble.textContent = reply;
 
             history.push({ role: "bot", content: reply });
             saveHistory();
@@ -383,9 +303,7 @@ display:inline-block;
             isLoading = false;
           });
       }
-
     }
-
   }
 
   if (document.readyState === "loading") {
@@ -395,4 +313,3 @@ display:inline-block;
   }
 
 })();
-
