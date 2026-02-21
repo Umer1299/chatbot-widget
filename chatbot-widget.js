@@ -255,7 +255,7 @@
         if (done) break;
         const chunk = decoder.decode(value);
         fullText += chunk;
-        botBubble.innerHTML = escapeHtml(fullText);
+        botBubble.innerHTML = escapeHtml(data.text||data.response?.text||"No Response");
         messages.scrollTop = messages.scrollHeight;
       }
 
@@ -298,5 +298,6 @@
     })[m]);
   }
 })();
+
 
 
