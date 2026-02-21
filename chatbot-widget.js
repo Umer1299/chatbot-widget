@@ -74,19 +74,36 @@
 *{box-sizing:border-box;font-family:Inter,Arial,sans-serif;}
 
 .bubble{
-position:fixed;
-bottom:24px;
-${position === "left" ? "left:24px;" : "right:24px;"}
-width:60px;height:60px;
-border-radius:50%;
-background:${config.primaryColor};
-display:flex;align-items:center;justify-content:center;
-cursor:pointer;color:white;
-box-shadow:0 20px 50px rgba(0,0,0,.2);
-transition:transform .25s ease;
-z-index:999999;
+position: fixed;
+  bottom: 24px;
+  ${position === "left" ? "left:24px;" : "right:24px;"}
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: ${config.primaryColor};
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  box-shadow:0 20px 50px rgba(0,0,0,.2);
+  z-index:9999;
+  transition: transform .25s ease;
+  overflow:hidden;
+  padding:0;
 }
 .bubble:hover{transform:scale(1.08);}
+.bubble img.bubble-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;     /* IMPORTANT */
+  border-radius: 50%;
+  display:block;
+}
+
+.default-icon {
+  font-size:26px;
+  color:white;
+}
 
 .window{
 position:fixed;
@@ -203,7 +220,11 @@ display:inline-block;
 }
 </style>
 
-<div class="bubble"><div class="icon"></div></div>
+<div class="bubble">${
+    config.iconUrl
+      ? <img src="https:${config.iconUrl.replace(/^https?:/, '')}" class="bubble-icon" />
+      : <span class="default-icon">💬</span>
+  }</div>
 
 <div class="window">
 <div class="header">${config.name}</div>
@@ -374,3 +395,4 @@ display:inline-block;
   }
 
 })();
+
