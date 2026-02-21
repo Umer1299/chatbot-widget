@@ -28,7 +28,8 @@
     try {
       const res = await fetch(CONFIG_URL);
       if (!res.ok) throw new Error("Invalid bot.");
-      config = await res.json();
+      const data=await res.json();
+      config = data.response;
 
       createSession();
       renderUI();
@@ -297,4 +298,5 @@
     })[m]);
   }
 })();
+
 
