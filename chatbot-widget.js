@@ -18,6 +18,7 @@
     var BASE_URL = "https://chatflowai.io/version-test/api/1.1/wf/";
     var CONFIG_URL = BASE_URL + "get-chatbot?chatID=" + botId;
     var MESSAGE_URL = BASE_URL + "create-chat";
+    var FEEDBACK_URL = "https://chatflowai.io/api/1.1/wf/create-feedback";
 
     var config = {};
     var sessionId = null;
@@ -221,6 +222,15 @@ animation:bounce 1.4s infinite ease-in-out both;
 0%,80%,100%{transform:scale(0);}
 40%{transform:scale(1);}
 }
+
+.feedback-actions{display:flex;gap:8px;margin-top:6px;padding-left:6px;}
+.feedback-btn{
+background:transparent;border:none;color:${isDark ? "#9ca3af" : "#6b7280"};
+cursor:pointer;padding:2px;display:flex;align-items:center;justify-content:center;
+}
+.feedback-btn:hover{color:${isDark ? "#f9fafb" : "#111827"};}
+.feedback-btn.active{color:${config.primaryColor};}
+
 </style>
 
 <div class="bubble">${iconHTML}</div>
@@ -284,16 +294,64 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
         msg.appendChild(bubble);
         messages.appendChild(msg);
         scrollBottom();
-        return bubble;
+        return { msg: msg, bubble: bubble };
       }
 
-      function typeText(target, text, delay) {
+      function postFeedback(feedback) {
+        return fetch(FEEDBACK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            botId: botId,
+            sessionId: sessionId,
+            feedback: feedback
+          })
+        });
+      }
+
+      function renderFeedbackActions(targetMessage) {
+        var wrap = document.createElement("div");
+        wrap.className = "feedback-actions";
+
+        var likeBtn = document.createElement("button");
+        likeBtn.type = "button";
+        likeBtn.className = "feedback-btn";
+        likeBtn.innerHTML = "&#128077;";
+
+        var dislikeBtn = document.createElement("button");
+        dislikeBtn.type = "button";
+        dislikeBtn.className = "feedback-btn";
+        dislikeBtn.innerHTML = "&#128078;";
+
+        function setActive(activeBtn) {
+          likeBtn.classList.toggle("active", activeBtn === likeBtn);
+          dislikeBtn.classList.toggle("active", activeBtn === dislikeBtn);
+        }
+
+        function submitFeedback(value, activeBtn) {
+          setActive(activeBtn);
+          postFeedback(value).catch(function () {
+            setActive(null);
+          });
+        }
+
+        likeBtn.addEventListener("click", function () { submitFeedback("like", likeBtn); });
+        dislikeBtn.addEventListener("click", function () { submitFeedback("dislike", dislikeBtn); });
+
+        wrap.appendChild(likeBtn);
+        wrap.appendChild(dislikeBtn);
+        targetMessage.appendChild(wrap);
+        scrollBottom();
+      }
+
+      function typeText(target, text, delay, done) {
         var index = 0;
         target.textContent = "";
 
         function step() {
           if (index >= text.length) {
             scrollBottom();
+            if (done) done();
             return;
           }
           target.textContent += text.charAt(index);
@@ -358,7 +416,8 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
         input.value = "";
         sendBtn.classList.remove("active");
 
-        var botBubble = appendMessage("", "bot");
+        var botMessage = appendMessage("", "bot");
+        var botBubble = botMessage.bubble;
 
         botBubble.innerHTML =
           '<div class="typing"><span></span><span></span><span></span></div>';
@@ -384,7 +443,9 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
               (data.response && data.response.text) ||
               "No response.";
 
-            typeText(botBubble, reply, 16);
+            typeText(botBubble, reply, 16, function () {
+              renderFeedbackActions(botMessage.msg);
+            });
           })
           .catch(function () {
             botBubble.textContent = "Server error.";
