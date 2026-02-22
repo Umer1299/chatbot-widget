@@ -23,6 +23,7 @@
     var config = {};
     var sessionId = null;
     var isLoading = false;
+    var chatHistory = [];
 
     fetch(CONFIG_URL)
       .then(function (r) { return r.json(); })
@@ -43,6 +44,7 @@
         config.showBranding = showBrandingValue !== false && showBrandingValue !== "false";
 
         createSession();
+        loadHistory();
         renderUI();
       });
 
@@ -53,6 +55,28 @@
         sessionId = "s_" + Date.now();
         localStorage.setItem(key, sessionId);
       }
+    }
+
+    function getHistoryKey() {
+      return "chat_history_" + botId + "_" + sessionId;
+    }
+
+    function loadHistory() {
+      try {
+        var saved = localStorage.getItem(getHistoryKey());
+        chatHistory = saved ? JSON.parse(saved) : [];
+      } catch (e) {
+        chatHistory = [];
+      }
+    }
+
+    function persistHistory() {
+      localStorage.setItem(getHistoryKey(), JSON.stringify(chatHistory));
+    }
+
+    function addHistoryMessage(role, text) {
+      chatHistory.push({ role: role, text: text });
+      persistHistory();
     }
 
     function renderUI() {
@@ -363,6 +387,19 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
         step();
       }
 
+      function renderHistory() {
+        if (!chatHistory.length) {
+          appendMessage(config.welcomeMessage, "bot");
+          addHistoryMessage("bot", config.welcomeMessage);
+          return;
+        }
+
+        chatHistory.forEach(function (entry) {
+          if (!entry || !entry.role || typeof entry.text !== "string") return;
+          appendMessage(entry.text, entry.role);
+        });
+      }
+
       function getPromptText(prompt) {
         if (typeof prompt === "string") return prompt;
         if (prompt && typeof prompt === "object") {
@@ -405,7 +442,7 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
       }
 
       renderStarterPrompts();
-      appendMessage(config.welcomeMessage, "bot");
+      renderHistory();
 
       function sendMessage() {
 
@@ -413,6 +450,7 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
 
         var text = input.value.trim();
         appendMessage(text, "user");
+        addHistoryMessage("user", text);
         input.value = "";
         sendBtn.classList.remove("active");
 
@@ -444,11 +482,13 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
               "No response.";
 
             typeText(botBubble, reply, 16, function () {
+              addHistoryMessage("bot", reply);
               renderFeedbackActions(botMessage.msg);
             });
           })
           .catch(function () {
             botBubble.textContent = "Server error.";
+            addHistoryMessage("bot", "Server error.");
             scrollBottom();
           })
           .finally(function () {
