@@ -35,7 +35,11 @@
         config.starterPrompts = config.starterPrompts || config.starterprompts || [];
         config.brandingText = config.brandingText || config.poweredByText || "Powered by Chatflow";
         config.brandingUrl = config.brandingUrl || config.poweredByUrl || "https://chatflowai.io";
-        config.showBranding = config.showBranding !== false;
+        var showBrandingValue =
+          config.showBranding !== undefined
+            ? config.showBranding
+            : config.showbranding;
+        config.showBranding = showBrandingValue !== false && showBrandingValue !== "false";
 
         createSession();
         renderUI();
@@ -167,27 +171,30 @@ box-shadow:0 4px 12px rgba(0,0,0,.08);
 padding:10px 14px;
 text-align:center;
 font-size:12px;
-border-top:1px solid #eee;
-background:white;
+border-top:1px solid ${isDark ? "#374151" : "#eee"};
+background:${isDark ? "#111827" : "white"};
 }
-.branding a{color:#6b7280;text-decoration:none;}
+.branding a{color:${isDark ? "#e5e7eb" : "#6b7280"};text-decoration:none;}
 .branding a:hover{text-decoration:underline;}
 
 .input-area{
 padding:14px;
 display:flex;
-background:white;
-border-top:1px solid #eee;
+background:${isDark ? "#111827" : "white"};
+border-top:1px solid ${isDark ? "#374151" : "#eee"};
 }
 
 input{
 flex:1;
 padding:12px 14px;
 border-radius:999px;
-border:1px solid #ddd;
+border:1px solid ${isDark ? "#4b5563" : "#ddd"};
+background:${isDark ? "#1f2937" : "white"};
+color:${isDark ? "#f9fafb" : "#111"};
 outline:none;
 font-size:14px;
 }
+input::placeholder{color:${isDark ? "#9ca3af" : "#9ca3af"};}
 
 .send-btn{
 margin-left:8px;
