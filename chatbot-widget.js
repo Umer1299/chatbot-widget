@@ -33,6 +33,9 @@
         config.welcomeMessage = config.welcomeMessage || "Hello!";
         config.iconUrl = config.iconUrl || null;
         config.starterPrompts = config.starterPrompts || config.starterprompts || [];
+        config.brandingText = config.brandingText || config.poweredByText || "Powered by Chatflow";
+        config.brandingUrl = config.brandingUrl || config.poweredByUrl || "https://chatflowai.io";
+        config.showBranding = config.showBranding !== false;
 
         createSession();
         renderUI();
@@ -160,6 +163,16 @@ border-bottom-left-radius:6px;
 box-shadow:0 4px 12px rgba(0,0,0,.08);
 }
 
+.branding{
+padding:10px 14px;
+text-align:center;
+font-size:12px;
+border-top:1px solid #eee;
+background:white;
+}
+.branding a{color:#6b7280;text-decoration:none;}
+.branding a:hover{text-decoration:underline;}
+
 .input-area{
 padding:14px;
 display:flex;
@@ -208,6 +221,7 @@ animation:bounce 1.4s infinite ease-in-out both;
 <div class="window">
 <div class="header"><div class="header-main">${headerIconHTML}<span>${config.name}</span></div></div>
 <div class="messages"></div>
+${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" target="_blank" rel="noopener noreferrer">${config.brandingText}</a></div>` : ""}
 <div class="input-area">
 <input placeholder="Type a message..." />
 <button class="send-btn">
