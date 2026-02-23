@@ -12,7 +12,6 @@
     var position = scriptTag.getAttribute("data-position") || "right";
     var theme = scriptTag.getAttribute("data-theme") || "light";
     var autoOpen = scriptTag.getAttribute("data-auto-open") === "true";
-    var userId = scriptTag.getAttribute("data-user-id") || null;
 
     if (!botId) return;
 
@@ -424,8 +423,7 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
           body: JSON.stringify({
             botId: botId,
             message: text,
-            sessionId: sessionId,
-            userId: userId
+            sessionId: sessionId
           })
         })
           .then(function (r) { return r.json(); })
