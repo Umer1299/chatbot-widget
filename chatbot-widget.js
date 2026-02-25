@@ -12,6 +12,8 @@
     var position = scriptTag.getAttribute("data-position") || "right";
     var theme = scriptTag.getAttribute("data-theme") || "light";
     var autoOpen = scriptTag.getAttribute("data-auto-open") === "true";
+    var embedMode = scriptTag.getAttribute("data-embed-mode") || "popup";
+    var userId = scriptTag.getAttribute("data-user-id") || null;
 
     if (!botId) return;
 
@@ -86,6 +88,7 @@
       var shadow = host.attachShadow({ mode: "open" });
 
       var isDark = theme === "dark";
+      var isIframeMode = embedMode === "iframe";
 
       var iconUrl = config.iconUrl
         ? (config.iconUrl.indexOf("http") === 0
@@ -112,7 +115,7 @@ ${position === "left" ? "left:24px;" : "right:24px;"}
 width:60px;height:60px;
 border-radius:50%;
 background:${config.primaryColor};
-display:flex;align-items:center;justify-content:center;
+display:${isIframeMode ? "none" : "flex"};align-items:center;justify-content:center;
 cursor:pointer;
 box-shadow:0 15px 40px rgba(0,0,0,.25);
 z-index:999999;
@@ -129,18 +132,17 @@ overflow:hidden;
 
 .window{
 position:fixed;
-bottom:100px;
-${position === "left" ? "left:24px;" : "right:24px;"}
-width:380px;height:600px;
+${isIframeMode ? "top:0;left:0;" : `bottom:100px;${position === "left" ? "left:24px;" : "right:24px;"}`}
+width:${isIframeMode ? "100vw" : "380px"};height:${isIframeMode ? "100vh" : "600px"};
 background:${isDark ? "#111827" : "#ffffff"};
-border-radius:20px;
-box-shadow:0 40px 100px rgba(0,0,0,.25);
+border-radius:${isIframeMode ? "0" : "20px"};
+box-shadow:${isIframeMode ? "none" : "0 40px 100px rgba(0,0,0,.25)"};
 display:flex;flex-direction:column;
 overflow:hidden;
 z-index:999999;
-opacity:0;visibility:hidden;
-transform:translateY(20px) scale(.96);
-transition:.3s ease;
+opacity:${isIframeMode ? "1" : "0"};visibility:${isIframeMode ? "visible" : "hidden"};
+transform:${isIframeMode ? "none" : "translateY(20px) scale(.96)"};
+transition:${isIframeMode ? "none" : ".3s ease"};
 }
 .window.open{opacity:1;visibility:visible;transform:translateY(0) scale(1);}
 
@@ -163,7 +165,7 @@ background:${isDark ? "#1f2937" : "#f3f4f6"};
 max-width:82%;
 padding:12px 14px;
 border-radius:16px;
-font-size:14px;
+font-size:16px;
 line-height:1.45;
 word-break:break-word;
 }
@@ -215,13 +217,13 @@ cursor:pointer;
 .branding a:hover{text-decoration:underline;}
 
 .input-area{padding:10px 12px;display:flex;align-items:center;background:${isDark ? "#111827" : "white"};border-top:1px solid ${isDark ? "#374151" : "#eee"};}
-input{flex:1;padding:12px 14px;border-radius:999px;border:1px solid ${isDark ? "#4b5563" : "#ddd"};background:${isDark ? "#1f2937" : "white"};color:${isDark ? "#f9fafb" : "#111"};outline:none;font-size:14px;}
+input{flex:1;padding:12px 14px;border-radius:999px;border:1px solid ${isDark ? "#4b5563" : "#ddd"};background:${isDark ? "#1f2937" : "white"};color:${isDark ? "#f9fafb" : "#111"};outline:none;font-size:16px;}
 input::placeholder{color:#9ca3af;}
 .send-btn{margin-left:8px;width:40px;height:40px;border-radius:50%;border:none;background:${config.primaryColor};display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.6;transition:.2s;}
 .send-btn.active{opacity:1;}
 </style>
 
-<div class="bubble">${iconHTML}<svg class="toggle-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></div>
+${isIframeMode ? "" : `<div class="bubble">${iconHTML}<svg class="toggle-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></div>`}
 
 <div class="window">
 <div class="header"><div class="header-main">${headerIconHTML}<span>${config.name}</span></div></div>
@@ -248,15 +250,17 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
         messages.scrollTop = messages.scrollHeight;
       }
 
-      bubble.onclick = function () {
-        windowEl.classList.toggle("open");
-        bubble.classList.toggle("open", windowEl.classList.contains("open"));
-        setTimeout(scrollBottom, 120);
-      };
+      if (bubble) {
+        bubble.onclick = function () {
+          windowEl.classList.toggle("open");
+          bubble.classList.toggle("open", windowEl.classList.contains("open"));
+          setTimeout(scrollBottom, 120);
+        };
+      }
 
-      if (autoOpen) {
+      if (!isIframeMode && autoOpen) {
         windowEl.classList.add("open");
-        bubble.classList.add("open");
+        if (bubble) bubble.classList.add("open");
       }
 
       input.addEventListener("input", function () {
@@ -402,6 +406,10 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
       renderHistory();
       renderStarterPrompts();
 
+      if (isIframeMode) {
+        windowEl.classList.add("open");
+      }
+
       function sendMessage() {
         if (isLoading || !input.value.trim()) return;
 
@@ -423,7 +431,8 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
           body: JSON.stringify({
             botId: botId,
             message: text,
-            sessionId: sessionId
+            sessionId: sessionId,
+            userId: userId
           })
         })
           .then(function (r) { return r.json(); })
