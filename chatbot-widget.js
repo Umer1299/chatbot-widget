@@ -156,7 +156,9 @@ overflow:hidden;
 .window{
 position:fixed;
 ${isIframeMode ? "top:0;left:0;" : `bottom:100px;${position === "left" ? "left:24px;" : "right:24px;"}`}
-width:${isIframeMode ? "100vw" : "380px"};height:${isIframeMode ? "100vh" : "600px"};
+width:${isIframeMode ? "100vw" : "fit-content"};height:${isIframeMode ? "100vh" : "600px"};
+min-width:${isIframeMode ? "100vw" : "320px"};
+max-width:${isIframeMode ? "100vw" : "min(92vw, 640px)"};
 background:${isDark ? "#111827" : "#ffffff"};
 border-radius:${isIframeMode ? "0" : "20px"};
 box-shadow:${isIframeMode ? "none" : "0 40px 100px rgba(0,0,0,.25)"};
@@ -231,7 +233,7 @@ border-radius:999px;
 border:1px solid ${isDark ? "#4b5563" : "#d1d5db"};
 background:${isDark ? "#1f2937" : "#fff"};
 color:${isDark ? "#e5e7eb" : "#111"};
-font-size:12px;
+font-size:${widgetFontSize};
 cursor:pointer;
 }
 
