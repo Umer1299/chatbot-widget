@@ -27,6 +27,17 @@
     var isLoading = false;
     var chatHistory = [];
 
+    function parseBoolean(value, fallback) {
+      if (value === undefined || value === null || value === "") return fallback;
+      if (typeof value === "boolean") return value;
+      if (typeof value === "string") {
+        var lower = value.toLowerCase();
+        if (lower === "true") return true;
+        if (lower === "false") return false;
+      }
+      return fallback;
+    }
+
     fetch(CONFIG_URL)
       .then(function (r) { return r.json(); })
       .then(function (json) {
@@ -44,6 +55,16 @@
             ? config.showBranding
             : config.showbranding;
         config.showBranding = showBrandingValue !== false && showBrandingValue !== "false";
+
+        position = (config.position || position || "right").toLowerCase() === "left" ? "left" : "right";
+        theme = (config.theme || config.mode || theme || "light").toLowerCase() === "dark" ? "dark" : "light";
+        autoOpen = parseBoolean(
+          config.autoOpen !== undefined ? config.autoOpen : config.autoopen,
+          autoOpen
+        );
+
+        config.fontFamily = config.fontFamily || config.fontfamily || "Inter";
+        config.fontSize = parseInt(config.fontSize || config.fontsize, 10) || 16;
 
         createSession();
         loadHistory();
@@ -89,6 +110,8 @@
 
       var isDark = theme === "dark";
       var isIframeMode = embedMode === "iframe";
+      var widgetFontFamily = config.fontFamily;
+      var widgetFontSize = config.fontSize + "px";
 
       var iconUrl = config.iconUrl
         ? (config.iconUrl.indexOf("http") === 0
@@ -106,7 +129,7 @@
 
       shadow.innerHTML = `
 <style>
-*{box-sizing:border-box;font-family:Inter,Arial,sans-serif;}
+*{box-sizing:border-box;font-family:${widgetFontFamily},Arial,sans-serif;}
 
 .bubble{
 position:fixed;
@@ -165,7 +188,7 @@ background:${isDark ? "#1f2937" : "#f3f4f6"};
 max-width:82%;
 padding:12px 14px;
 border-radius:16px;
-font-size:16px;
+font-size:${widgetFontSize};
 line-height:1.45;
 word-break:break-word;
 }
@@ -217,7 +240,7 @@ cursor:pointer;
 .branding a:hover{text-decoration:underline;}
 
 .input-area{padding:10px 12px;display:flex;align-items:center;background:${isDark ? "#111827" : "white"};border-top:1px solid ${isDark ? "#374151" : "#eee"};}
-input{flex:1;padding:12px 14px;border-radius:999px;border:1px solid ${isDark ? "#4b5563" : "#ddd"};background:${isDark ? "#1f2937" : "white"};color:${isDark ? "#f9fafb" : "#111"};outline:none;font-size:16px;}
+input{flex:1;padding:12px 14px;border-radius:999px;border:1px solid ${isDark ? "#4b5563" : "#ddd"};background:${isDark ? "#1f2937" : "white"};color:${isDark ? "#f9fafb" : "#111"};outline:none;font-size:${widgetFontSize};}
 input::placeholder{color:#9ca3af;}
 .send-btn{margin-left:8px;width:40px;height:40px;border-radius:50%;border:none;background:${config.primaryColor};display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:.6;transition:.2s;}
 .send-btn.active{opacity:1;}
