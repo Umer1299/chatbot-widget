@@ -207,6 +207,15 @@ color:${isDark ? "#f9fafb" : "#111"};
 border-bottom-left-radius:6px;
 }
 
+.bubble-msg p{margin:0 0 8px;}
+.bubble-msg p:last-child{margin-bottom:0;}
+.bubble-msg ul{margin:0 0 8px 18px;padding:0;}
+.bubble-msg li{margin:0 0 4px;}
+.bubble-msg code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:${isDark ? "#111827" : "#dbe2ea"};padding:2px 5px;border-radius:6px;font-size:calc(${widgetFontSize} - 1px);}
+.bubble-msg pre{margin:0 0 8px;background:${isDark ? "#0b1220" : "#dbe2ea"};padding:8px;border-radius:8px;overflow:auto;}
+.bubble-msg pre code{background:transparent;padding:0;}
+.bubble-msg a{color:${isDark ? "#93c5fd" : "#1d4ed8"};text-decoration:underline;}
+
 .feedback-actions{display:flex;align-items:center;gap:10px;margin-top:6px;padding-left:4px;color:${isDark ? "#9ca3af" : "#6b7280"};font-size:12px;}
 .feedback-divider{opacity:.7;}
 .feedback-btn{background:none;border:none;padding:0;display:flex;align-items:center;justify-content:center;cursor:pointer;color:${isDark ? "#9ca3af" : "#6b7280"};}
@@ -301,12 +310,71 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
 
       sendBtn.onclick = sendMessage;
 
-      function appendMessage(text, role) {
+      function escapeHtml(text) {
+        return (text || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function renderMarkdown(text) {
+        var escaped = escapeHtml(text || "");
+
+        escaped = escaped
+          .replace(/```([\s\S]*?)```/g, function (_, code) {
+            return '<pre><code>' + code.trim() + '</code></pre>';
+          })
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+          .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+          .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+          .replace(/_([^_]+)_/g, '<em>$1</em>')
+          .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+        var lines = escaped.split(/\n/);
+        var html = [];
+        var inList = false;
+
+        lines.forEach(function (line) {
+          var listMatch = line.match(/^\s*[-*]\s+(.+)$/);
+          if (listMatch) {
+            if (!inList) {
+              html.push('<ul>');
+              inList = true;
+            }
+            html.push('<li>' + listMatch[1] + '</li>');
+          } else {
+            if (inList) {
+              html.push('</ul>');
+              inList = false;
+            }
+            if (line.trim() === "") {
+              html.push('<br>');
+            } else {
+              html.push('<p>' + line + '</p>');
+            }
+          }
+        });
+
+        if (inList) html.push('</ul>');
+
+        return html.join('');
+      }
+
+      function appendMessage(text, role, useMarkdown) {
         var msg = document.createElement("div");
         msg.className = "message " + role;
         var bubbleNode = document.createElement("div");
         bubbleNode.className = "bubble-msg";
-        bubbleNode.textContent = text;
+
+        if (useMarkdown) {
+          bubbleNode.innerHTML = renderMarkdown(text);
+        } else {
+          bubbleNode.textContent = text;
+        }
+
         msg.appendChild(bubbleNode);
         messages.appendChild(msg);
         scrollBottom();
@@ -417,14 +485,14 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
 
       function renderHistory() {
         if (!chatHistory.length) {
-          appendMessage(config.welcomeMessage, "bot");
+          appendMessage(config.welcomeMessage, "bot", true);
           addHistoryMessage("bot", config.welcomeMessage);
           return;
         }
 
         chatHistory.forEach(function (entry) {
           if (!entry || !entry.role || typeof entry.text !== "string") return;
-          appendMessage(entry.text, entry.role);
+          appendMessage(entry.text, entry.role, entry.role === "bot");
         });
       }
 
@@ -444,7 +512,7 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
         input.value = "";
         sendBtn.classList.remove("active");
 
-        var botMessage = appendMessage("", "bot");
+        var botMessage = appendMessage("", "bot", false);
         var botBubble = botMessage.bubble;
         botBubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
 
@@ -468,6 +536,7 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
               "No response.";
 
             typeText(botBubble, reply, 16, function () {
+              botBubble.innerHTML = renderMarkdown(reply);
               addHistoryMessage("bot", reply);
               renderFeedbackActions(botMessage.msg);
             });
