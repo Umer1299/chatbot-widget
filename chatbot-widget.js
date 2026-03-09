@@ -230,20 +230,32 @@ border-bottom-left-radius:6px;
 @keyframes bounce{0%,80%,100%{transform:scale(0);}40%{transform:scale(1);}}
 
 .starter-row{
-padding:10px 14px 8px;
-display:flex;gap:8px;overflow-x:auto;
+padding:12px 14px 10px;
+display:flex;
+flex-wrap:wrap;
+justify-content:flex-end;
+gap:10px;
+max-height:150px;
+overflow-y:auto;
+overflow-x:hidden;
 background:${isDark ? "#111827" : "#fff"};
 border-top:1px solid ${isDark ? "#374151" : "#eee"};
 }
 .starter-prompt{
 white-space:nowrap;
-padding:7px 10px;
+padding:9px 14px;
 border-radius:999px;
 border:1px solid ${isDark ? "#4b5563" : "#d1d5db"};
 background:${isDark ? "#1f2937" : "#fff"};
 color:${isDark ? "#e5e7eb" : "#111"};
 font-size:${widgetFontSize};
+line-height:1.2;
 cursor:pointer;
+transition:background .2s ease,color .2s ease,border-color .2s ease;
+}
+.starter-prompt:hover{
+background:${isDark ? "#374151" : "#f9fafb"};
+border-color:${isDark ? "#6b7280" : "#cbd5e1"};
 }
 
 .branding{padding:8px 14px;text-align:center;font-size:12px;border-top:1px solid ${isDark ? "#374151" : "#eee"};background:${isDark ? "#111827" : "white"};}
@@ -464,6 +476,8 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
           starterRow.style.display = "none";
           return;
         }
+
+        starterRow.style.display = "flex";
 
         promptList.forEach(function (item) {
           var text = getPromptText(item).trim();
