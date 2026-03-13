@@ -3,9 +3,17 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Chatflow Embed</title>
+
+<title>Chatbot</title>
+
 <style>
-*{box-sizing:border-box;font-family:Inter,Arial,sans-serif;margin:0;padding:0}
+
+*{
+box-sizing:border-box;
+font-family:Inter,Arial,sans-serif;
+margin:0;
+padding:0
+}
 
 body{
 height:100vh;
@@ -26,6 +34,7 @@ width:100%;
 padding:16px;
 font-weight:600;
 color:white;
+font-size:15px;
 }
 
 .messages{
@@ -36,14 +45,14 @@ background:#f3f4f6;
 }
 
 .message{
-margin-bottom:12px;
+margin-bottom:14px;
 display:flex;
 flex-direction:column;
 max-width:100%;
 }
 
-.user{align-items:flex-end;}
-.bot{align-items:flex-start;}
+.user{align-items:flex-end}
+.bot{align-items:flex-start}
 
 .bubble-msg{
 max-width:75%;
@@ -52,6 +61,27 @@ border-radius:16px;
 font-size:14px;
 line-height:1.45;
 word-break:break-word;
+}
+
+.starter-prompts{
+padding:10px 16px;
+display:flex;
+flex-wrap:wrap;
+gap:8px;
+background:#f3f4f6;
+}
+
+.prompt{
+background:white;
+border:1px solid #e5e7eb;
+padding:8px 12px;
+border-radius:20px;
+font-size:13px;
+cursor:pointer;
+}
+
+.prompt:hover{
+background:#f9fafb;
 }
 
 .input-area{
@@ -80,7 +110,8 @@ display:flex;
 align-items:center;
 justify-content:center;
 cursor:pointer;
-opacity:.7;
+color:white;
+font-size:16px;
 }
 
 .typing{
@@ -103,68 +134,108 @@ animation:bounce 1.4s infinite ease-in-out both;
 0%,80%,100%{transform:scale(0);}
 40%{transform:scale(1);}
 }
+
 </style>
 </head>
 
 <body>
 
 <div class="chat-container">
-  <div class="header" id="header"></div>
-  <div class="messages" id="messages"></div>
-  <div class="input-area">
-    <input id="input" placeholder="Message..." />
-    <button class="send-btn" id="sendBtn">➤</button>
-  </div>
+
+<div class="header" id="header">Assistant</div>
+
+<div class="messages" id="messages"></div>
+
+<div id="starterPrompts" class="starter-prompts"></div>
+
+<div class="input-area">
+<input id="input" placeholder="Message..." />
+<button class="send-btn" id="sendBtn">➤</button>
+</div>
+
 </div>
 
 <script>
+
 (function(){
 
 var params = new URLSearchParams(window.location.search);
 var botId = params.get("botId");
-var theme = params.get("theme") || "light";
 
 if(!botId){
-document.body.innerHTML = "Bot ID missing";
+document.body.innerHTML="Bot ID missing";
 return;
 }
 
-var BASE_URL = "https://chatflowai.io/version-test/api/1.1/wf/";
-var CONFIG_URL = BASE_URL + "get-chatbot?chatID=" + botId;
-var MESSAGE_URL = BASE_URL + "create-chat";
+var BASE_URL="https://chatflowai.io/version-test/api/1.1/wf/";
+var CONFIG_URL=BASE_URL+"get-chatbot?chatID="+botId;
+var MESSAGE_URL=BASE_URL+"create-chat";
 
-var header = document.getElementById("header");
-var messages = document.getElementById("messages");
-var input = document.getElementById("input");
-var sendBtn = document.getElementById("sendBtn");
+var header=document.getElementById("header");
+var messages=document.getElementById("messages");
+var input=document.getElementById("input");
+var sendBtn=document.getElementById("sendBtn");
+var promptsContainer=document.getElementById("starterPrompts");
 
-var sessionId = "s_" + Date.now();
+var primaryColor="#2563eb";
 
-var primaryColor = "#2563eb";
+var sessionId="s_"+Date.now();
 
 fetch(CONFIG_URL)
 .then(r=>r.json())
 .then(function(json){
 
-var config = json.response || {};
-primaryColor = config.primaryColor || primaryColor;
+var config=json.response||{};
 
-header.textContent = config.name || "Chat Assistant";
-header.style.background = primaryColor;
+primaryColor=config.primaryColor||primaryColor;
+
+header.textContent=config.name||"Assistant";
+header.style.background=primaryColor;
+
+sendBtn.style.background=primaryColor;
 
 if(config.welcomeMessage){
 appendMessage(config.welcomeMessage,"bot");
 }
 
+if(config.starterPrompts){
+renderPrompts(config.starterPrompts);
+}
+
 });
 
+function renderPrompts(list){
+
+if(typeof list==="string"){
+try{list=JSON.parse(list)}catch(e){}
+}
+
+if(!Array.isArray(list))return;
+
+list.forEach(function(text){
+
+var btn=document.createElement("div");
+btn.className="prompt";
+btn.textContent=text;
+
+btn.onclick=function(){
+input.value=text;
+sendMessage();
+};
+
+promptsContainer.appendChild(btn);
+
+});
+
+}
+
 function appendMessage(text,role){
+
 var msg=document.createElement("div");
 msg.className="message "+role;
 
 var bubble=document.createElement("div");
 bubble.className="bubble-msg";
-bubble.textContent=text;
 
 if(role==="user"){
 bubble.style.background=primaryColor;
@@ -172,15 +243,42 @@ bubble.style.color="white";
 bubble.style.borderBottomRightRadius="6px";
 }else{
 bubble.style.background="white";
-bubble.style.color="#111";
 bubble.style.borderBottomLeftRadius="6px";
 }
 
+bubble.textContent=text;
+
 msg.appendChild(bubble);
 messages.appendChild(msg);
+
 messages.scrollTop=messages.scrollHeight;
 
 return bubble;
+
+}
+
+function typeWriter(element,text){
+
+element.textContent="";
+var i=0;
+
+function type(){
+
+if(i<text.length){
+
+element.textContent+=text.charAt(i);
+i++;
+
+messages.scrollTop=messages.scrollHeight;
+
+setTimeout(type,15);
+
+}
+
+}
+
+type();
+
 }
 
 function sendMessage(){
@@ -189,9 +287,11 @@ var text=input.value.trim();
 if(!text)return;
 
 appendMessage(text,"user");
+
 input.value="";
 
 var botBubble=appendMessage("","bot");
+
 botBubble.innerHTML='<div class="typing"><span></span><span></span><span></span></div>';
 
 fetch(MESSAGE_URL,{
@@ -206,23 +306,28 @@ sessionId:sessionId
 .then(r=>r.json())
 .then(function(data){
 
-var reply=data.text || (data.response && data.response.text) || "No response.";
-botBubble.textContent=reply;
-messages.scrollTop=messages.scrollHeight;
+var reply=data.text||(data.response && data.response.text)||"No response.";
+
+typeWriter(botBubble,reply);
 
 })
 .catch(function(){
+
 botBubble.textContent="Server error.";
+
 });
 
 }
 
 sendBtn.onclick=sendMessage;
+
 input.addEventListener("keydown",function(e){
+
 if(e.key==="Enter" && !e.shiftKey){
 e.preventDefault();
 sendMessage();
 }
+
 });
 
 })();
