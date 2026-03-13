@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
+
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 <title>Chatflow Embed</title>
 
+<!-- Markdown parser -->
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
 <style>
@@ -14,7 +16,7 @@
 box-sizing:border-box;
 font-family:Inter,Arial,sans-serif;
 margin:0;
-padding:0;
+padding:0
 }
 
 body{
@@ -36,7 +38,6 @@ width:100%;
 padding:16px;
 font-weight:600;
 color:white;
-font-size:15px;
 }
 
 .messages{
@@ -53,30 +54,34 @@ flex-direction:column;
 max-width:100%;
 }
 
-.user{align-items:flex-end;}
-.bot{align-items:flex-start;}
+.user{align-items:flex-end}
+.bot{align-items:flex-start}
 
 .bubble-msg{
 max-width:75%;
 padding:12px 14px;
 border-radius:16px;
 font-size:14px;
-line-height:1.45;
+line-height:1.5;
 word-break:break-word;
 }
 
-/* Markdown styling */
+/* Markdown Styling */
 
-.bubble-msg h1,
-.bubble-msg h2,
-.bubble-msg h3{
-margin:6px 0;
-font-size:15px;
-}
+.bubble-msg p{margin:4px 0}
 
 .bubble-msg ul{
 padding-left:18px;
-margin-top:6px;
+margin:6px 0
+}
+
+.bubble-msg li{
+margin:3px 0
+}
+
+.bubble-msg a{
+color:#2563eb;
+text-decoration:underline
 }
 
 .bubble-msg pre{
@@ -85,13 +90,13 @@ color:#fff;
 padding:10px;
 border-radius:8px;
 overflow:auto;
-margin-top:6px;
+margin-top:6px
 }
 
 .bubble-msg code{
 background:#f3f4f6;
 padding:2px 4px;
-border-radius:4px;
+border-radius:4px
 }
 
 .starter-prompts{
@@ -99,7 +104,7 @@ padding:10px 16px;
 display:flex;
 flex-wrap:wrap;
 gap:8px;
-background:#f3f4f6;
+background:#f3f4f6
 }
 
 .prompt{
@@ -108,18 +113,18 @@ border:1px solid #e5e7eb;
 padding:8px 12px;
 border-radius:20px;
 font-size:13px;
-cursor:pointer;
+cursor:pointer
 }
 
 .prompt:hover{
-background:#f9fafb;
+background:#f9fafb
 }
 
 .input-area{
 padding:12px;
 display:flex;
 background:white;
-border-top:1px solid #eee;
+border-top:1px solid #eee
 }
 
 input{
@@ -128,7 +133,7 @@ padding:12px 14px;
 border-radius:999px;
 border:1px solid #ddd;
 outline:none;
-font-size:14px;
+font-size:14px
 }
 
 .send-btn{
@@ -141,14 +146,13 @@ display:flex;
 align-items:center;
 justify-content:center;
 cursor:pointer;
-opacity:.9;
 color:white;
-font-size:16px;
+font-size:16px
 }
 
 .typing{
 display:inline-flex;
-gap:4px;
+gap:4px
 }
 
 .typing span{
@@ -156,15 +160,15 @@ width:6px;
 height:6px;
 background:#999;
 border-radius:50%;
-animation:bounce 1.4s infinite ease-in-out both;
+animation:bounce 1.4s infinite ease-in-out both
 }
 
-.typing span:nth-child(1){animation-delay:-0.32s;}
-.typing span:nth-child(2){animation-delay:-0.16s;}
+.typing span:nth-child(1){animation-delay:-0.32s}
+.typing span:nth-child(2){animation-delay:-0.16s}
 
 @keyframes bounce{
-0%,80%,100%{transform:scale(0);}
-40%{transform:scale(1);}
+0%,80%,100%{transform:scale(0)}
+40%{transform:scale(1)}
 }
 
 </style>
@@ -191,50 +195,48 @@ animation:bounce 1.4s infinite ease-in-out both;
 
 (function(){
 
-var params=new URLSearchParams(window.location.search);
-var botId=params.get("botId");
+var params = new URLSearchParams(window.location.search)
+var botId = params.get("botId")
 
 if(!botId){
-document.body.innerHTML="Bot ID missing";
-return;
+document.body.innerHTML="Bot ID missing"
+return
 }
 
-var BASE_URL="https://chatflowai.io/version-test/api/1.1/wf/";
-var CONFIG_URL=BASE_URL+"get-chatbot?chatID="+botId;
-var MESSAGE_URL=BASE_URL+"create-chat";
+var BASE_URL="https://chatflowai.io/version-test/api/1.1/wf/"
+var CONFIG_URL=BASE_URL+"get-chatbot?chatID="+botId
+var MESSAGE_URL=BASE_URL+"create-chat"
 
-var header=document.getElementById("header");
-var messages=document.getElementById("messages");
-var input=document.getElementById("input");
-var sendBtn=document.getElementById("sendBtn");
-var promptsContainer=document.getElementById("starterPrompts");
+var header=document.getElementById("header")
+var messages=document.getElementById("messages")
+var input=document.getElementById("input")
+var sendBtn=document.getElementById("sendBtn")
+var promptsContainer=document.getElementById("starterPrompts")
 
-var sessionId="s_"+Date.now();
-
-var primaryColor="#2563eb";
+var sessionId="s_"+Date.now()
+var primaryColor="#2563eb"
 
 fetch(CONFIG_URL)
 .then(r=>r.json())
 .then(function(json){
 
-var config=json.response||{};
+var config=json.response||{}
 
-primaryColor=config.primaryColor||primaryColor;
+primaryColor=config.primaryColor||primaryColor
 
-header.textContent=config.name||"Chat Assistant";
-header.style.background=primaryColor;
-
-sendBtn.style.background=primaryColor;
+header.textContent=config.name||"Chat Assistant"
+header.style.background=primaryColor
+sendBtn.style.background=primaryColor
 
 if(config.welcomeMessage){
-appendMessage(config.welcomeMessage,"bot");
+appendMessage(config.welcomeMessage,"bot")
 }
 
 if(config.starterPrompts){
-renderPrompts(config.starterPrompts);
+renderPrompts(config.starterPrompts)
 }
 
-});
+})
 
 function renderPrompts(list){
 
@@ -242,100 +244,101 @@ if(typeof list==="string"){
 try{list=JSON.parse(list)}catch(e){}
 }
 
-if(!Array.isArray(list))return;
+if(!Array.isArray(list))return
 
 list.forEach(function(text){
 
-var btn=document.createElement("div");
-btn.className="prompt";
-btn.textContent=text;
+var btn=document.createElement("div")
+btn.className="prompt"
+btn.textContent=text
 
 btn.onclick=function(){
-input.value=text;
-sendMessage();
-};
+input.value=text
+sendMessage()
+}
 
-promptsContainer.appendChild(btn);
+promptsContainer.appendChild(btn)
 
-});
+})
 
 }
 
 function appendMessage(text,role){
 
-var msg=document.createElement("div");
-msg.className="message "+role;
+var msg=document.createElement("div")
+msg.className="message "+role
 
-var bubble=document.createElement("div");
-bubble.className="bubble-msg";
+var bubble=document.createElement("div")
+bubble.className="bubble-msg"
 
 if(role==="user"){
 
-bubble.style.background=primaryColor;
-bubble.style.color="white";
-bubble.style.borderBottomRightRadius="6px";
-bubble.textContent=text;
+bubble.style.background=primaryColor
+bubble.style.color="white"
+bubble.style.borderBottomRightRadius="6px"
+bubble.textContent=text
 
 }else{
 
-bubble.style.background="white";
-bubble.style.color="#111";
-bubble.style.borderBottomLeftRadius="6px";
+bubble.style.background="white"
+bubble.style.color="#111"
+bubble.style.borderBottomLeftRadius="6px"
 
-bubble.innerHTML=marked.parse(text);
+bubble.innerHTML=marked.parse(text)
 
 }
 
-msg.appendChild(bubble);
-messages.appendChild(msg);
+msg.appendChild(bubble)
+messages.appendChild(msg)
 
-messages.scrollTop=messages.scrollHeight;
+messages.scrollTop=messages.scrollHeight
 
-return bubble;
+return bubble
 
 }
 
 function typeWriter(element,text){
 
-var i=0;
-var temp="";
+var i=0
+var temp=""
 
 function type(){
 
 if(i<text.length){
 
-temp+=text.charAt(i);
-element.textContent=temp;
+temp+=text.charAt(i)
+element.textContent=temp
 
-i++;
+i++
 
-messages.scrollTop=messages.scrollHeight;
+messages.scrollTop=messages.scrollHeight
 
-setTimeout(type,15);
+setTimeout(type,15)
 
 }else{
 
-element.innerHTML=marked.parse(text);
+/* render markdown */
+element.innerHTML=marked.parse(text)
 
 }
 
 }
 
-type();
+type()
 
 }
 
 function sendMessage(){
 
-var text=input.value.trim();
-if(!text)return;
+var text=input.value.trim()
+if(!text)return
 
-appendMessage(text,"user");
-input.value="";
+appendMessage(text,"user")
+input.value=""
 
-var botBubble=appendMessage("","bot");
+var botBubble=appendMessage("","bot")
 
-botBubble.innerHTML='<div class="typing"><span></span><span></span><span></span></div>';
+botBubble.innerHTML='<div class="typing"><span></span><span></span><span></span></div>'
 
 fetch(MESSAGE_URL,{
 method:"POST",
@@ -349,29 +352,31 @@ sessionId:sessionId
 .then(r=>r.json())
 .then(function(data){
 
-var reply=data.text||(data.response && data.response.text)||"No response.";
+var reply=data.text||(data.response && data.response.text)||"No response."
 
-typeWriter(botBubble,reply);
+typeWriter(botBubble,reply)
 
 })
 .catch(function(){
 
-botBubble.textContent="Server error.";
+botBubble.textContent="Server error."
 
-});
+})
 
 }
 
-sendBtn.onclick=sendMessage;
+sendBtn.onclick=sendMessage
 
 input.addEventListener("keydown",function(e){
-if(e.key==="Enter" && !e.shiftKey){
-e.preventDefault();
-sendMessage();
-}
-});
 
-})();
+if(e.key==="Enter" && !e.shiftKey){
+e.preventDefault()
+sendMessage()
+}
+
+})
+
+})()
 
 </script>
 
