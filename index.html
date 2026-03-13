@@ -4,7 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-<title>Chatbot</title>
+<title>Chatflow Embed</title>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
 <style>
 
@@ -12,7 +14,7 @@
 box-sizing:border-box;
 font-family:Inter,Arial,sans-serif;
 margin:0;
-padding:0
+padding:0;
 }
 
 body{
@@ -45,14 +47,14 @@ background:#f3f4f6;
 }
 
 .message{
-margin-bottom:14px;
+margin-bottom:12px;
 display:flex;
 flex-direction:column;
 max-width:100%;
 }
 
-.user{align-items:flex-end}
-.bot{align-items:flex-start}
+.user{align-items:flex-end;}
+.bot{align-items:flex-start;}
 
 .bubble-msg{
 max-width:75%;
@@ -61,6 +63,35 @@ border-radius:16px;
 font-size:14px;
 line-height:1.45;
 word-break:break-word;
+}
+
+/* Markdown styling */
+
+.bubble-msg h1,
+.bubble-msg h2,
+.bubble-msg h3{
+margin:6px 0;
+font-size:15px;
+}
+
+.bubble-msg ul{
+padding-left:18px;
+margin-top:6px;
+}
+
+.bubble-msg pre{
+background:#111;
+color:#fff;
+padding:10px;
+border-radius:8px;
+overflow:auto;
+margin-top:6px;
+}
+
+.bubble-msg code{
+background:#f3f4f6;
+padding:2px 4px;
+border-radius:4px;
 }
 
 .starter-prompts{
@@ -110,6 +141,7 @@ display:flex;
 align-items:center;
 justify-content:center;
 cursor:pointer;
+opacity:.9;
 color:white;
 font-size:16px;
 }
@@ -142,7 +174,7 @@ animation:bounce 1.4s infinite ease-in-out both;
 
 <div class="chat-container">
 
-<div class="header" id="header">Assistant</div>
+<div class="header" id="header"></div>
 
 <div class="messages" id="messages"></div>
 
@@ -159,8 +191,8 @@ animation:bounce 1.4s infinite ease-in-out both;
 
 (function(){
 
-var params = new URLSearchParams(window.location.search);
-var botId = params.get("botId");
+var params=new URLSearchParams(window.location.search);
+var botId=params.get("botId");
 
 if(!botId){
 document.body.innerHTML="Bot ID missing";
@@ -177,9 +209,9 @@ var input=document.getElementById("input");
 var sendBtn=document.getElementById("sendBtn");
 var promptsContainer=document.getElementById("starterPrompts");
 
-var primaryColor="#2563eb";
-
 var sessionId="s_"+Date.now();
+
+var primaryColor="#2563eb";
 
 fetch(CONFIG_URL)
 .then(r=>r.json())
@@ -189,7 +221,7 @@ var config=json.response||{};
 
 primaryColor=config.primaryColor||primaryColor;
 
-header.textContent=config.name||"Assistant";
+header.textContent=config.name||"Chat Assistant";
 header.style.background=primaryColor;
 
 sendBtn.style.background=primaryColor;
@@ -238,15 +270,21 @@ var bubble=document.createElement("div");
 bubble.className="bubble-msg";
 
 if(role==="user"){
+
 bubble.style.background=primaryColor;
 bubble.style.color="white";
 bubble.style.borderBottomRightRadius="6px";
-}else{
-bubble.style.background="white";
-bubble.style.borderBottomLeftRadius="6px";
-}
-
 bubble.textContent=text;
+
+}else{
+
+bubble.style.background="white";
+bubble.style.color="#111";
+bubble.style.borderBottomLeftRadius="6px";
+
+bubble.innerHTML=marked.parse(text);
+
+}
 
 msg.appendChild(bubble);
 messages.appendChild(msg);
@@ -259,19 +297,25 @@ return bubble;
 
 function typeWriter(element,text){
 
-element.textContent="";
 var i=0;
+var temp="";
 
 function type(){
 
 if(i<text.length){
 
-element.textContent+=text.charAt(i);
+temp+=text.charAt(i);
+element.textContent=temp;
+
 i++;
 
 messages.scrollTop=messages.scrollHeight;
 
 setTimeout(type,15);
+
+}else{
+
+element.innerHTML=marked.parse(text);
 
 }
 
@@ -287,7 +331,6 @@ var text=input.value.trim();
 if(!text)return;
 
 appendMessage(text,"user");
-
 input.value="";
 
 var botBubble=appendMessage("","bot");
@@ -322,15 +365,14 @@ botBubble.textContent="Server error.";
 sendBtn.onclick=sendMessage;
 
 input.addEventListener("keydown",function(e){
-
 if(e.key==="Enter" && !e.shiftKey){
 e.preventDefault();
 sendMessage();
 }
-
 });
 
 })();
+
 </script>
 
 </body>
