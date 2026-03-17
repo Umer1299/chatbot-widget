@@ -322,7 +322,6 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
       var input = shadow.querySelector("input");
       var sendBtn = shadow.querySelector(".send-btn");
 
-      var hadHistoryOnLoad = chatHistory.length > 0;
       var isUserNearBottom = true;
 
       function isNearBottom() {
@@ -552,7 +551,7 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
           return entry && entry.role === "user";
         });
 
-        if (hadHistoryOnLoad || hasUserMessage || !promptList.length) {
+        if (hasUserMessage || !promptList.length) {
           removeStarterPrompts();
           return;
         }
