@@ -158,7 +158,7 @@ position:fixed;
 ${isIframeMode ? "top:0;left:0;" : `bottom:100px;${position === "left" ? "left:24px;" : "right:24px;"}`}
 width:${isIframeMode ? "100vw" : "fit-content"};height:${isIframeMode ? "100vh" : "600px"};
 min-width:${isIframeMode ? "100vw" : "320px"};
-max-width:${isIframeMode ? "100vw" : "min(92vw, 500px)"};
+max-width:${isIframeMode ? "100vw" : "min(92vw, 400px)"};
 background:${isDark ? "#111827" : "#ffffff"};
 border-radius:${isIframeMode ? "0" : "20px"};
 box-shadow:${isIframeMode ? "none" : "0 40px 100px rgba(0,0,0,.25)"};
@@ -177,8 +177,11 @@ transition:${isIframeMode ? "none" : ".3s ease"};
 
 .messages{
 flex:1;
+min-height:0;
 padding:14px;
 overflow-y:auto;
+overscroll-behavior:contain;
+scroll-behavior:smooth;
 background:${isDark ? "#1f2937" : "#f3f4f6"};
 }
 
@@ -263,6 +266,26 @@ background:${isDark ? "#374151" : "#f9fafb"};
 border-color:${isDark ? "#6b7280" : "#cbd5e1"};
 }
 
+.scroll-bottom-btn{
+position:absolute;
+right:14px;
+bottom:72px;
+width:34px;
+height:34px;
+border-radius:999px;
+border:1px solid ${isDark ? "#4b5563" : "#d1d5db"};
+background:${isDark ? "#1f2937" : "#ffffff"};
+color:${isDark ? "#e5e7eb" : "#111827"};
+display:none;
+align-items:center;
+justify-content:center;
+cursor:pointer;
+box-shadow:0 6px 16px rgba(0,0,0,.18);
+z-index:3;
+}
+.scroll-bottom-btn.show{display:flex;}
+.scroll-bottom-btn svg{width:16px;height:16px;fill:currentColor;}
+
 .branding{padding:8px 14px;text-align:center;font-size:12px;border-top:1px solid ${isDark ? "#374151" : "#eee"};background:${isDark ? "#111827" : "white"};}
 .branding a{color:${isDark ? "#e5e7eb" : "#6b7280"};text-decoration:none;}
 .branding a:hover{text-decoration:underline;}
@@ -279,6 +302,7 @@ ${isIframeMode ? "" : `<div class="bubble">${iconHTML}<svg class="toggle-icon" v
 <div class="window">
 <div class="header"><div class="header-main">${headerIconHTML}<span>${config.name}</span></div></div>
 <div class="messages"></div>
+<button class="scroll-bottom-btn" type="button" aria-label="Scroll to bottom"><svg viewBox="0 0 24 24"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg></button>
 <div class="starter-row"></div>
 ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" target="_blank" rel="noopener noreferrer">${config.brandingText}</a></div>` : ""}
 <div class="input-area">
@@ -293,19 +317,50 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
       var bubble = shadow.querySelector(".bubble");
       var windowEl = shadow.querySelector(".window");
       var messages = shadow.querySelector(".messages");
+      var scrollBottomBtn = shadow.querySelector(".scroll-bottom-btn");
       var starterRow = shadow.querySelector(".starter-row");
       var input = shadow.querySelector("input");
       var sendBtn = shadow.querySelector(".send-btn");
 
-      function scrollBottom() {
-        messages.scrollTop = messages.scrollHeight;
+      var hadHistoryOnLoad = chatHistory.length > 0;
+      var isUserNearBottom = true;
+
+      function isNearBottom() {
+        return messages.scrollHeight - messages.scrollTop - messages.clientHeight < 56;
       }
+
+      function updateScrollButton() {
+        scrollBottomBtn.classList.toggle("show", !isNearBottom());
+      }
+
+      function scrollBottom(smooth) {
+        messages.scrollTo({
+          top: messages.scrollHeight,
+          behavior: smooth ? "smooth" : "auto"
+        });
+        isUserNearBottom = true;
+        updateScrollButton();
+      }
+
+      function removeStarterPrompts() {
+        if (!starterRow || !starterRow.parentNode) return;
+        starterRow.parentNode.removeChild(starterRow);
+      }
+
+      messages.addEventListener("scroll", function () {
+        isUserNearBottom = isNearBottom();
+        updateScrollButton();
+      });
+
+      scrollBottomBtn.addEventListener("click", function () {
+        scrollBottom(true);
+      });
 
       if (bubble) {
         bubble.onclick = function () {
           windowEl.classList.toggle("open");
           bubble.classList.toggle("open", windowEl.classList.contains("open"));
-          setTimeout(scrollBottom, 120);
+          setTimeout(function () { scrollBottom(false); }, 120);
         };
       }
 
@@ -381,6 +436,7 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
       }
 
       function appendMessage(text, role, useMarkdown) {
+        var shouldStick = isUserNearBottom;
         var msg = document.createElement("div");
         msg.className = "message " + role;
         var bubbleNode = document.createElement("div");
@@ -394,8 +450,14 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
 
         msg.appendChild(bubbleNode);
         messages.appendChild(msg);
-        scrollBottom();
-        return { msg: msg, bubble: bubbleNode };
+
+        if (shouldStick) {
+          scrollBottom(false);
+        } else {
+          updateScrollButton();
+        }
+
+        return { msg: msg, bubble: bubbleNode, shouldStick: shouldStick };
       }
 
       function postFeedback(feedback) {
@@ -441,22 +503,32 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
         wrap.appendChild(likeBtn);
         wrap.appendChild(dislikeBtn);
         targetMessage.appendChild(wrap);
-        scrollBottom();
+        updateScrollButton();
       }
 
-      function typeText(target, text, delay, done) {
+      function typeText(target, text, delay, done, shouldStick) {
         var index = 0;
         target.textContent = "";
 
         function step() {
           if (index >= text.length) {
-            scrollBottom();
+            if (shouldStick) scrollBottom(false);
             if (done) done();
             return;
           }
           target.textContent += text.charAt(index);
           index += 1;
-          scrollBottom();
+
+          if (shouldStick) {
+            shouldStick = isUserNearBottom;
+          }
+
+          if (shouldStick) {
+            scrollBottom(false);
+          } else {
+            updateScrollButton();
+          }
+
           setTimeout(step, delay);
         }
 
@@ -476,12 +548,16 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
           ? config.starterPrompts
           : [];
 
-        starterRow.innerHTML = "";
-        if (!promptList.length) {
-          starterRow.style.display = "none";
+        var hasUserMessage = chatHistory.some(function (entry) {
+          return entry && entry.role === "user";
+        });
+
+        if (hadHistoryOnLoad || hasUserMessage || !promptList.length) {
+          removeStarterPrompts();
           return;
         }
 
+        starterRow.innerHTML = "";
         starterRow.style.display = "flex";
 
         promptList.forEach(function (item) {
@@ -526,7 +602,8 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
         if (isLoading || !input.value.trim()) return;
 
         var text = input.value.trim();
-        appendMessage(text, "user");
+        removeStarterPrompts();
+        var userMessage = appendMessage(text, "user");
         addHistoryMessage("user", text);
         input.value = "";
         sendBtn.classList.remove("active");
@@ -558,12 +635,12 @@ ${config.showBranding ? `<div class="branding"><a href="${config.brandingUrl}" t
               botBubble.innerHTML = renderMarkdown(reply);
               addHistoryMessage("bot", reply);
               renderFeedbackActions(botMessage.msg);
-            });
+            }, botMessage.shouldStick || userMessage.shouldStick);
           })
           .catch(function () {
             botBubble.textContent = "Server error.";
             addHistoryMessage("bot", "Server error.");
-            scrollBottom();
+            updateScrollButton();
           })
           .finally(function () {
             isLoading = false;
