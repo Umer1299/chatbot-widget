@@ -17,7 +17,7 @@
 
     if (!botId) return;
 
-    var BASE_URL = "https://chatflowai.io/api/1.1/wf/";
+    var BASE_URL = "https://chatflowai.io/version-test/api/1.1/wf/";
     var CONFIG_URL = BASE_URL + "get-chatbot?chatID=" + botId;
     var MESSAGE_URL = BASE_URL + "create-chat";
     var FEEDBACK_URL = "https://chatflowai.io/api/1.1/wf/create-feedback";
@@ -233,16 +233,21 @@ border-bottom-left-radius:6px;
 padding:12px 14px 10px;
 display:flex;
 flex-wrap:wrap;
-justify-content:flex-end;
-gap:10px;
-max-height:150px;
-overflow-y:auto;
+gap:8px;
+align-items:flex-start;
+justify-content:flex-start;
 overflow-x:hidden;
 background:${isDark ? "#111827" : "#fff"};
 border-top:1px solid ${isDark ? "#374151" : "#eee"};
 }
 .starter-prompt{
-white-space:nowrap;
+display:inline-flex;
+align-items:center;
+justify-content:center;
+white-space:normal;
+max-width:100%;
+word-break:break-word;
+text-align:left;
 padding:9px 14px;
 border-radius:999px;
 border:1px solid ${isDark ? "#4b5563" : "#d1d5db"};
