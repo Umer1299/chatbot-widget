@@ -158,7 +158,7 @@ position:fixed;
 ${isIframeMode ? "top:0;left:0;" : `bottom:100px;${position === "left" ? "left:24px;" : "right:24px;"}`}
 width:${isIframeMode ? "100vw" : "fit-content"};height:${isIframeMode ? "100vh" : "600px"};
 min-width:${isIframeMode ? "100vw" : "320px"};
-max-width:${isIframeMode ? "100vw" : "min(92vw, 450px)"};
+max-width:${isIframeMode ? "100vw" : "min(92vw, 490px)"};
 background:${isDark ? "#111827" : "#ffffff"};
 border-radius:${isIframeMode ? "0" : "20px"};
 box-shadow:${isIframeMode ? "none" : "0 40px 100px rgba(0,0,0,.25)"};
