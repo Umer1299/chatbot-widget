@@ -116,6 +116,39 @@
     }
   }
 
+  function toBoolean(value, fallback) {
+    if (typeof value === "boolean") {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      var normalized = value.toLowerCase().trim();
+      if (normalized === "true" || normalized === "1" || normalized === "yes") {
+        return true;
+      }
+      if (normalized === "false" || normalized === "0" || normalized === "no") {
+        return false;
+      }
+    }
+
+    return typeof fallback === "boolean" ? fallback : false;
+  }
+
+  function normalizeFontSize(value, fallback) {
+    if (typeof value === "number" && !isNaN(value)) {
+      return value + "px";
+    }
+
+    if (typeof value === "string" && value.trim()) {
+      if (/^\d+(?:\.\d+)?$/.test(value.trim())) {
+        return value.trim() + "px";
+      }
+      return value.trim();
+    }
+
+    return fallback;
+  }
+
   function getApiUrl(apiHost, path) {
     return String(apiHost || DEFAULT_API_HOST).replace(/\/$/, "") + path;
   }
@@ -307,6 +340,37 @@
     };
   }
 
+  function normalizeRemoteConfig(widgetState, remoteConfig) {
+    var fallbackThemeConfig = widgetState.config.themeConfig || {};
+    var position = remoteConfig.position || widgetState.config.chatPosition || fallbackThemeConfig.position || "right";
+    var normalizedPrompts = remoteConfig.starterPrompts;
+
+    if (typeof normalizedPrompts === "string") {
+      normalizedPrompts = parseJson(normalizedPrompts, normalizedPrompts);
+    }
+
+    if (!Array.isArray(normalizedPrompts)) {
+      normalizedPrompts = Array.isArray(fallbackThemeConfig.starterPrompts) ? fallbackThemeConfig.starterPrompts : [];
+    }
+
+    return {
+      name: remoteConfig.name || fallbackThemeConfig.title || "Chat Assistant",
+      primaryColor: remoteConfig.primaryColor || fallbackThemeConfig.primaryColor || "#2563eb",
+      welcomeMessage: remoteConfig.welcomeMessage || fallbackThemeConfig.welcomeMessage || "",
+      starterPrompts: normalizedPrompts,
+      inputPlaceholder: remoteConfig.inputPlaceholder || fallbackThemeConfig.inputPlaceholder || "Message...",
+      iconUrl: remoteConfig.iconUrl || fallbackThemeConfig.iconUrl || "",
+      showBranding: toBoolean(remoteConfig.showBranding, toBoolean(fallbackThemeConfig.showBranding, false)),
+      brandingText: remoteConfig.brandingText || fallbackThemeConfig.brandingText || "",
+      brandingUrl: remoteConfig.brandingUrl || fallbackThemeConfig.brandingUrl || "",
+      autoOpen: toBoolean(remoteConfig.autoOpen, toBoolean(fallbackThemeConfig.autoOpen, false)),
+      theme: (remoteConfig.theme || fallbackThemeConfig.theme || "light").toLowerCase() === "dark" ? "dark" : "light",
+      fontFamily: remoteConfig.fontFamily || fallbackThemeConfig.fontFamily || "Inter, Arial, sans-serif",
+      fontSize: normalizeFontSize(remoteConfig.fontSize || fallbackThemeConfig.fontSize, "14px"),
+      position: position === "left" ? "left" : "right"
+    };
+  }
+
   function buildWidgetMarkup(root, chatPosition) {
     root.innerHTML = [
       '<style>',
@@ -316,10 +380,13 @@
       '  bottom: calc(24px + env(safe-area-inset-bottom));',
       '  right: 20px;',
       '  z-index: ' + MAX_Z_INDEX + ';',
-      '  font-family: Inter, Arial, sans-serif;',
+      '  font-family: var(--chatbot-font-family, Inter, Arial, sans-serif);',
+      '  font-size: var(--chatbot-font-size, 14px);',
       '  color: #111827;',
+      '  pointer-events: auto;',
       '}',
       '.widget-root[data-position="left"] { left: 20px; right: auto; }',
+      '.widget-root[data-theme="dark"] { color: #f9fafb; }',
       '.launcher {',
       '  width: 60px;',
       '  height: 60px;',
@@ -327,13 +394,15 @@
       '  border-radius: 999px;',
       '  cursor: pointer;',
       '  color: #fff;',
-      '  background: #2563eb;',
+      '  background: var(--chatbot-primary, #2563eb);',
       '  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.35);',
       '  font-size: 24px;',
       '  display: inline-flex;',
       '  align-items: center;',
       '  justify-content: center;',
+      '  pointer-events: auto;',
       '}',
+      '.launcher img { width: 28px; height: 28px; object-fit: contain; display: block; }',
       '.panel {',
       '  width: min(380px, calc(100vw - 24px));',
       '  height: min(640px, calc(100vh - 96px - env(safe-area-inset-bottom)));',
@@ -345,37 +414,53 @@
       '  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.24);',
       '  border: 1px solid rgba(229, 231, 235, 0.9);',
       '  display: none;',
+      '  pointer-events: auto;',
       '}',
       '.widget-root[data-open="true"] .panel { display: flex; flex-direction: column; }',
-      '.chat-container { flex: 1; display: flex; flex-direction: column; height: 100%; width: 100%; background: #f3f4f6; }',
-      '.header { padding: 16px; font-weight: 600; color: white; background: #2563eb; display: flex; align-items: center; justify-content: space-between; gap: 12px; }',
+      '.widget-root[data-theme="dark"] .panel { background: #111827; border-color: rgba(55, 65, 81, 0.9); }',
+      '.chat-container { flex: 1; display: flex; flex-direction: column; height: 100%; width: 100%; background: #f3f4f6; pointer-events: auto; }',
+      '.widget-root[data-theme="dark"] .chat-container { background: #111827; }',
+      '.header { padding: 16px; font-weight: 600; color: white; background: var(--chatbot-primary, #2563eb); display: flex; align-items: center; justify-content: space-between; gap: 12px; }',
       '.header-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
       '.header-actions { display: flex; align-items: center; gap: 8px; }',
       '.header-btn { background: transparent; border: none; color: inherit; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; }',
       '.messages { flex: 1; overflow-y: auto; padding: 16px; background: #f3f4f6; }',
+      '.widget-root[data-theme="dark"] .messages { background: #111827; }',
       '.message { margin-bottom: 12px; display: flex; flex-direction: column; max-width: 100%; }',
       '.user { align-items: flex-end; }',
       '.bot { align-items: flex-start; }',
-      '.bubble-msg { max-width: 75%; padding: 12px 14px; border-radius: 16px; font-size: 14px; line-height: 1.5; word-break: break-word; white-space: normal; }',
+      '.bubble-msg { max-width: 75%; padding: 12px 14px; border-radius: 16px; font-size: 1em; line-height: 1.5; word-break: break-word; white-space: normal; }',
       '.bubble-msg p { margin: 4px 0; }',
       '.bubble-msg ul { padding-left: 18px; margin: 6px 0; }',
       '.bubble-msg li { margin: 3px 0; }',
       '.bubble-msg a { color: #2563eb; text-decoration: underline; }',
       '.bubble-msg pre { background: #111; color: #fff; padding: 10px; border-radius: 8px; overflow: auto; margin-top: 6px; }',
       '.bubble-msg code { background: #e5e7eb; padding: 2px 4px; border-radius: 4px; }',
+      '.widget-root[data-theme="dark"] .bubble-msg code { background: #1f2937; color: #f9fafb; }',
       '.starter-prompts { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 8px; background: #f3f4f6; }',
       '.starter-prompts:empty { display: none; }',
-      '.prompt { background: white; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 20px; font-size: 13px; cursor: pointer; }',
+      '.widget-root[data-theme="dark"] .starter-prompts { background: #111827; }',
+      '.prompt { background: white; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 20px; font-size: 0.93em; cursor: pointer; color: inherit; }',
       '.prompt:hover { background: #f9fafb; }',
+      '.widget-root[data-theme="dark"] .prompt { background: #1f2937; border-color: #374151; color: #f9fafb; }',
+      '.widget-root[data-theme="dark"] .prompt:hover { background: #273449; }',
       '.input-area { padding: 12px; display: flex; background: white; border-top: 1px solid #eee; }',
-      '.chat-input { flex: 1; padding: 12px 14px; border-radius: 999px; border: 1px solid #ddd; outline: none; font-size: 14px; font-family: inherit; }',
+      '.widget-root[data-theme="dark"] .input-area { background: #0f172a; border-top-color: #1f2937; }',
+      '.chat-input { flex: 1; padding: 12px 14px; border-radius: 999px; border: 1px solid #ddd; outline: none; font-size: 1em; font-family: inherit; background: white; color: #111827; }',
       '.chat-input:disabled { background: #f9fafb; cursor: not-allowed; }',
-      '.send-btn { margin-left: 8px; width: 40px; height: 40px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; color: white; font-size: 16px; background: #2563eb; }',
+      '.widget-root[data-theme="dark"] .chat-input { background: #111827; border-color: #374151; color: #f9fafb; }',
+      '.widget-root[data-theme="dark"] .chat-input:disabled { background: #111827; }',
+      '.send-btn { margin-left: 8px; width: 40px; height: 40px; border-radius: 50%; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; color: white; font-size: 16px; background: var(--chatbot-primary, #2563eb); }',
       '.send-btn:disabled { opacity: 0.7; cursor: not-allowed; }',
       '.typing { display: inline-flex; gap: 4px; }',
       '.typing span { width: 6px; height: 6px; background: #999; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both; }',
       '.typing span:nth-child(1) { animation-delay: -0.32s; }',
       '.typing span:nth-child(2) { animation-delay: -0.16s; }',
+      '.branding { padding: 10px 16px 12px; background: white; border-top: 1px solid #eee; text-align: center; display: none; }',
+      '.branding[data-visible="true"] { display: block; }',
+      '.widget-root[data-theme="dark"] .branding { background: #0f172a; border-top-color: #1f2937; }',
+      '.branding-link { font-size: 0.85em; color: #6b7280; text-decoration: none; }',
+      '.widget-root[data-theme="dark"] .branding-link { color: #cbd5e1; }',
       '.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }',
       '@keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }',
       '@media (max-width: 767px) {',
@@ -384,7 +469,7 @@
       '  .panel { width: min(100vw - 24px, 420px); height: min(70vh, calc(100vh - 110px - env(safe-area-inset-bottom))); }',
       '}',
       '</style>',
-      '<div class="widget-root" data-position="' + (chatPosition === "left" ? "left" : "right") + '" data-open="false">',
+      '<div class="widget-root" data-position="' + (chatPosition === "left" ? "left" : "right") + '" data-open="false" data-theme="light">',
       '  <div class="panel">',
       '    <div class="chat-container">',
       '      <div class="header">',
@@ -401,6 +486,9 @@
       '        <input id="chatbot-widget-input" class="chat-input" data-role="input" placeholder="Message..." />',
       '        <button class="send-btn" type="button" data-role="send-btn" aria-label="Send message">➤</button>',
       '      </div>',
+      '      <div class="branding" data-role="branding" data-visible="false">',
+      '        <a class="branding-link" data-role="branding-link" href="#" target="_blank" rel="noopener noreferrer"></a>',
+      '      </div>',
       '    </div>',
       '  </div>',
       '  <button class="launcher" type="button" data-role="launcher" aria-label="Open chat">💬</button>',
@@ -409,6 +497,8 @@
   }
 
   function createWidgetState(host, root, config) {
+    var defaults = normalizeRemoteConfig({ config: config }, {});
+
     return {
       host: host,
       root: root,
@@ -426,13 +516,23 @@
         messages: root.querySelector('[data-role="messages"]'),
         prompts: root.querySelector('[data-role="prompts"]'),
         input: root.querySelector('[data-role="input"]'),
-        sendBtn: root.querySelector('[data-role="send-btn"]')
+        sendBtn: root.querySelector('[data-role="send-btn"]'),
+        branding: root.querySelector('[data-role="branding"]'),
+        brandingLink: root.querySelector('[data-role="branding-link"]')
       },
-      primaryColor: config.themeConfig.primaryColor || "#2563eb",
-      title: config.themeConfig.title || "Chat Assistant",
-      welcomeMessage: config.themeConfig.welcomeMessage || "",
-      starterPrompts: config.themeConfig.starterPrompts || [],
-      placeholder: config.themeConfig.inputPlaceholder || "Message...",
+      title: defaults.name,
+      primaryColor: defaults.primaryColor,
+      welcomeMessage: defaults.welcomeMessage,
+      starterPrompts: defaults.starterPrompts,
+      placeholder: defaults.inputPlaceholder,
+      iconUrl: defaults.iconUrl,
+      showBranding: defaults.showBranding,
+      brandingText: defaults.brandingText,
+      brandingUrl: defaults.brandingUrl,
+      autoOpen: defaults.autoOpen,
+      theme: defaults.theme,
+      fontFamily: defaults.fontFamily,
+      fontSize: defaults.fontSize,
       isLoading: false,
       configLoaded: false,
       typingTimer: null
@@ -472,13 +572,19 @@
   }
 
   function setWidgetPosition(widgetState, position) {
-    widgetState.elements.widgetRoot.setAttribute("data-position", position === "left" ? "left" : "right");
+    var resolvedPosition = position === "left" ? "left" : "right";
+    widgetState.config.chatPosition = resolvedPosition;
+    widgetState.elements.widgetRoot.setAttribute("data-position", resolvedPosition);
   }
 
-  function setWidgetOpen(widgetState, isOpen) {
+  function setWidgetOpen(widgetState, isOpen, persistState) {
     widgetState.elements.widgetRoot.setAttribute("data-open", isOpen ? "true" : "false");
-    widgetState.uiState.open = !!isOpen;
-    saveStoredUiState(widgetState.config.botId, widgetState.uiState);
+
+    if (persistState !== false) {
+      widgetState.uiState.open = !!isOpen;
+      saveStoredUiState(widgetState.config.botId, widgetState.uiState);
+    }
+
     if (isOpen) {
       setTimeout(function () {
         widgetState.elements.input.focus();
@@ -487,11 +593,33 @@
     }
   }
 
+  function updateLauncherIcon(widgetState) {
+    if (widgetState.iconUrl) {
+      widgetState.elements.launcher.innerHTML = '<img src="' + escapeHtml(widgetState.iconUrl) + '" alt="Chat" />';
+    } else {
+      widgetState.elements.launcher.textContent = "💬";
+    }
+  }
+
   function updateBranding(widgetState) {
+    widgetState.host.style.setProperty("--chatbot-primary", widgetState.primaryColor || "#2563eb");
+    widgetState.host.style.setProperty("--chatbot-font-family", widgetState.fontFamily || "Inter, Arial, sans-serif");
+    widgetState.host.style.setProperty("--chatbot-font-size", widgetState.fontSize || "14px");
+
     widgetState.elements.headerTitle.textContent = widgetState.title || "Chat Assistant";
     widgetState.elements.sendBtn.style.background = widgetState.primaryColor;
     widgetState.elements.launcher.style.background = widgetState.primaryColor;
-    widgetState.elements.headerTitle.parentNode.style.background = widgetState.primaryColor;
+    widgetState.elements.widgetRoot.setAttribute("data-theme", widgetState.theme === "dark" ? "dark" : "light");
+
+    updateLauncherIcon(widgetState);
+    setWidgetPosition(widgetState, widgetState.config.chatPosition);
+
+    var brandingVisible = !!widgetState.showBranding && !!widgetState.brandingText;
+    widgetState.elements.branding.setAttribute("data-visible", brandingVisible ? "true" : "false");
+    widgetState.elements.brandingLink.textContent = widgetState.brandingText || "";
+    widgetState.elements.brandingLink.href = widgetState.brandingUrl || "#";
+    widgetState.elements.brandingLink.style.pointerEvents = brandingVisible ? "auto" : "none";
+    widgetState.elements.input.placeholder = widgetState.placeholder || "Message...";
   }
 
   function renderPrompts(widgetState, list) {
@@ -555,8 +683,8 @@
       bubble.style.borderBottomRightRadius = "6px";
       bubble.textContent = normalized.text;
     } else {
-      bubble.style.background = "white";
-      bubble.style.color = "#111";
+      bubble.style.background = widgetState.theme === "dark" ? "#1f2937" : "white";
+      bubble.style.color = widgetState.theme === "dark" ? "#f9fafb" : "#111";
       bubble.style.borderBottomLeftRadius = "6px";
       bubble.innerHTML = renderMarkdown(normalized.text);
     }
@@ -618,6 +746,40 @@
     return (data && data.response) || data || {};
   }
 
+  function applyRemoteConfig(widgetState, remoteConfig) {
+    var normalized = normalizeRemoteConfig(widgetState, remoteConfig);
+
+    widgetState.title = normalized.name;
+    widgetState.primaryColor = normalized.primaryColor;
+    widgetState.welcomeMessage = normalized.welcomeMessage;
+    widgetState.starterPrompts = normalized.starterPrompts;
+    widgetState.placeholder = normalized.inputPlaceholder;
+    widgetState.iconUrl = normalized.iconUrl;
+    widgetState.showBranding = normalized.showBranding;
+    widgetState.brandingText = normalized.brandingText;
+    widgetState.brandingUrl = normalized.brandingUrl;
+    widgetState.autoOpen = normalized.autoOpen;
+    widgetState.theme = normalized.theme;
+    widgetState.fontFamily = normalized.fontFamily;
+    widgetState.fontSize = normalized.fontSize;
+    widgetState.config.chatPosition = normalized.position;
+    widgetState.configLoaded = true;
+
+    updateBranding(widgetState);
+    renderPrompts(widgetState, widgetState.starterPrompts);
+    restoreHistory(widgetState);
+
+    if (!widgetState.history.length && widgetState.welcomeMessage) {
+      appendMessage(widgetState, { role: "bot", text: widgetState.welcomeMessage });
+    }
+
+    if (widgetState.autoOpen) {
+      setWidgetOpen(widgetState, true);
+    } else if (widgetState.uiState.open) {
+      setWidgetOpen(widgetState, true, false);
+    }
+  }
+
   function loadRemoteConfig(widgetState) {
     var url = getApiUrl(widgetState.config.apiHost, API_PATHS.config + encodeURIComponent(widgetState.config.botId));
 
@@ -629,25 +791,9 @@
         return response.json();
       })
       .then(function (data) {
-        var remoteConfig = normalizeConfigResponse(data);
-        widgetState.title = remoteConfig.name || widgetState.title || "Chat Assistant";
-        widgetState.primaryColor = remoteConfig.primaryColor || widgetState.primaryColor;
-        widgetState.welcomeMessage = remoteConfig.welcomeMessage || widgetState.welcomeMessage || "";
-        widgetState.starterPrompts = remoteConfig.starterPrompts || widgetState.starterPrompts || [];
-        widgetState.placeholder = remoteConfig.inputPlaceholder || widgetState.placeholder || "Message...";
-        widgetState.configLoaded = true;
-        updateBranding(widgetState);
-        widgetState.elements.input.placeholder = widgetState.placeholder;
-        renderPrompts(widgetState, widgetState.starterPrompts);
-
-        if (!widgetState.history.length && widgetState.welcomeMessage) {
-          appendMessage(widgetState, { role: "bot", text: widgetState.welcomeMessage });
-        }
+        applyRemoteConfig(widgetState, normalizeConfigResponse(data));
       }).catch(function () {
-        widgetState.title = widgetState.title || "Chat Assistant";
-        widgetState.placeholder = widgetState.placeholder || "Message...";
-        updateBranding(widgetState);
-        widgetState.elements.input.placeholder = widgetState.placeholder;
+        applyRemoteConfig(widgetState, {});
       });
   }
 
@@ -766,15 +912,9 @@
 
   function bootstrapWidget(widgetState) {
     ensureHighZIndex(widgetState.config.botId);
-    setWidgetPosition(widgetState, widgetState.config.chatPosition);
     bindWidgetEvents(widgetState);
     restoreHistory(widgetState);
-    updateBranding(widgetState);
-
-    if (widgetState.uiState.open) {
-      setWidgetOpen(widgetState, true);
-    }
-
+    applyRemoteConfig(widgetState, {});
     loadRemoteConfig(widgetState);
   }
 
