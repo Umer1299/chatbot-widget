@@ -149,6 +149,25 @@
     return fallback;
   }
 
+  function getDefaultLauncherIcon() {
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">' +
+      '<rect width="64" height="64" rx="32" fill="#2563eb"/>' +
+      '<path d="M20 23.5C20 19.9101 22.9101 17 26.5 17H37.5C41.0899 17 44 19.9101 44 23.5V30.5C44 34.0899 41.0899 37 37.5 37H31.5L24.5 43V37.7719C21.8692 36.9238 20 34.4607 20 31.5625V23.5Z" fill="white"/>' +
+      '</svg>'
+    );
+  }
+
+  function hasUserMessages(history) {
+    for (var i = 0; i < history.length; i += 1) {
+      if (history[i] && history[i].role === "user") {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   function getApiUrl(apiHost, path) {
     return String(apiHost || DEFAULT_API_HOST).replace(/\/$/, "") + path;
   }
@@ -380,12 +399,15 @@
       '  bottom: calc(24px + env(safe-area-inset-bottom));',
       '  right: 20px;',
       '  z-index: ' + MAX_Z_INDEX + ';',
+      '  display: flex;',
+      '  align-items: flex-end;',
+      '  gap: 14px;',
       '  font-family: var(--chatbot-font-family, Inter, Arial, sans-serif);',
       '  font-size: var(--chatbot-font-size, 14px);',
       '  color: #111827;',
       '  pointer-events: auto;',
       '}',
-      '.widget-root[data-position="left"] { left: 20px; right: auto; }',
+      '.widget-root[data-position="left"] { left: 20px; right: auto; flex-direction: row-reverse; }',
       '.widget-root[data-theme="dark"] { color: #f9fafb; }',
       '.launcher {',
       '  width: 60px;',
@@ -394,37 +416,40 @@
       '  border-radius: 999px;',
       '  cursor: pointer;',
       '  color: #fff;',
-      '  background: var(--chatbot-primary, #2563eb);',
-      '  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.35);',
+      '  background-color: var(--chatbot-primary, #2563eb);',
+      '  background-repeat: no-repeat;',
+      '  background-position: center;',
+      '  background-size: cover;',
+      '  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);',
       '  font-size: 24px;',
       '  display: inline-flex;',
       '  align-items: center;',
       '  justify-content: center;',
       '  pointer-events: auto;',
       '}',
-      '.launcher img { width: 28px; height: 28px; object-fit: contain; display: block; }',
       '.panel {',
       '  width: min(380px, calc(100vw - 24px));',
       '  height: min(640px, calc(100vh - 96px - env(safe-area-inset-bottom)));',
       '  max-height: calc(100vh - 96px - env(safe-area-inset-bottom));',
-      '  margin-bottom: 14px;',
       '  border-radius: 24px;',
       '  overflow: hidden;',
-      '  background: #f3f4f6;',
-      '  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.24);',
+      '  background: #f5f5f5;',
+      '  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16);',
       '  border: 1px solid rgba(229, 231, 235, 0.9);',
       '  display: none;',
       '  pointer-events: auto;',
       '}',
       '.widget-root[data-open="true"] .panel { display: flex; flex-direction: column; }',
       '.widget-root[data-theme="dark"] .panel { background: #111827; border-color: rgba(55, 65, 81, 0.9); }',
-      '.chat-container { flex: 1; display: flex; flex-direction: column; height: 100%; width: 100%; background: #f3f4f6; pointer-events: auto; }',
+      '.chat-container { flex: 1; display: flex; flex-direction: column; height: 100%; width: 100%; background: #f5f5f5; pointer-events: auto; min-height: 0; }',
       '.widget-root[data-theme="dark"] .chat-container { background: #111827; }',
       '.header { padding: 16px; font-weight: 600; color: white; background: var(--chatbot-primary, #2563eb); display: flex; align-items: center; justify-content: space-between; gap: 12px; }',
       '.header-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
       '.header-actions { display: flex; align-items: center; gap: 8px; }',
       '.header-btn { background: transparent; border: none; color: inherit; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; }',
-      '.messages { flex: 1; overflow-y: auto; padding: 16px; background: #f3f4f6; }',
+      '.messages { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; background: #f5f5f5; scrollbar-width: thin; scrollbar-color: var(--chatbot-primary, #2563eb) transparent; }',
+      '.messages::-webkit-scrollbar { width: 6px; }',
+      '.messages::-webkit-scrollbar-thumb { background: var(--chatbot-primary, #2563eb); border-radius: 10px; }',
       '.widget-root[data-theme="dark"] .messages { background: #111827; }',
       '.message { margin-bottom: 12px; display: flex; flex-direction: column; max-width: 100%; }',
       '.user { align-items: flex-end; }',
@@ -437,10 +462,11 @@
       '.bubble-msg pre { background: #111; color: #fff; padding: 10px; border-radius: 8px; overflow: auto; margin-top: 6px; }',
       '.bubble-msg code { background: #e5e7eb; padding: 2px 4px; border-radius: 4px; }',
       '.widget-root[data-theme="dark"] .bubble-msg code { background: #1f2937; color: #f9fafb; }',
-      '.starter-prompts { padding: 10px 16px; display: flex; flex-wrap: wrap; gap: 8px; background: #f3f4f6; }',
+      '.starter-prompts { padding: 0 16px 12px; display: flex; flex-direction: column; gap: 8px; background: #f5f5f5; }',
       '.starter-prompts:empty { display: none; }',
       '.widget-root[data-theme="dark"] .starter-prompts { background: #111827; }',
-      '.prompt { background: white; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 20px; font-size: 0.93em; cursor: pointer; color: inherit; }',
+      '.starter-prompts[data-hidden="true"] { display: none; }',
+      '.prompt { width: fit-content; max-width: 100%; background: white; border: 1px solid #e5e7eb; padding: 10px 14px; border-radius: 999px; font-size: 0.93em; cursor: pointer; color: inherit; text-align: left; }',
       '.prompt:hover { background: #f9fafb; }',
       '.widget-root[data-theme="dark"] .prompt { background: #1f2937; border-color: #374151; color: #f9fafb; }',
       '.widget-root[data-theme="dark"] .prompt:hover { background: #273449; }',
@@ -464,9 +490,11 @@
       '.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }',
       '@keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }',
       '@media (max-width: 767px) {',
-      '  .widget-root { bottom: calc(24px + env(safe-area-inset-bottom)); right: 12px; }',
-      '  .widget-root[data-position="left"] { left: 12px; right: auto; }',
-      '  .panel { width: min(100vw - 24px, 420px); height: min(70vh, calc(100vh - 110px - env(safe-area-inset-bottom))); }',
+      '  .widget-root { right: 0 !important; left: 0 !important; bottom: 0 !important; gap: 0; justify-content: flex-end; }',
+      '  .widget-root[data-position="left"] { left: 0 !important; right: 0 !important; }',
+      '  .panel { width: 100vw !important; height: 100vh !important; max-height: 100vh !important; border-radius: 0 !important; }',
+      '  .widget-root[data-open="true"] .panel { position: fixed; inset: 0; }',
+      '  .launcher { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); }',
       '}',
       '</style>',
       '<div class="widget-root" data-position="' + (chatPosition === "left" ? "left" : "right") + '" data-open="false" data-theme="light">',
@@ -571,6 +599,32 @@
     return widgetState;
   }
 
+  function ensureConversationStartedState(widgetState) {
+    if (hasUserMessages(widgetState.history)) {
+      widgetState.uiState.hasStartedConversation = true;
+      saveStoredUiState(widgetState.config.botId, widgetState.uiState);
+    }
+  }
+
+  function shouldShowStarterPrompts(widgetState) {
+    return !widgetState.uiState.hasStartedConversation;
+  }
+
+  function syncLauncherState(widgetState) {
+    var isOpen = widgetState.elements.widgetRoot.getAttribute("data-open") === "true";
+
+    if (isOpen) {
+      widgetState.elements.launcher.style.backgroundImage = "none";
+      widgetState.elements.launcher.textContent = "↓";
+      widgetState.elements.launcher.style.fontSize = "28px";
+      return;
+    }
+
+    widgetState.elements.launcher.textContent = "";
+    widgetState.elements.launcher.style.fontSize = "0";
+    widgetState.elements.launcher.style.backgroundImage = 'url("' + (widgetState.iconUrl || getDefaultLauncherIcon()) + '")';
+  }
+
   function setWidgetPosition(widgetState, position) {
     var resolvedPosition = position === "left" ? "left" : "right";
     widgetState.config.chatPosition = resolvedPosition;
@@ -585,19 +639,13 @@
       saveStoredUiState(widgetState.config.botId, widgetState.uiState);
     }
 
+    syncLauncherState(widgetState);
+
     if (isOpen) {
       setTimeout(function () {
         widgetState.elements.input.focus();
         widgetState.elements.messages.scrollTop = widgetState.elements.messages.scrollHeight;
       }, 0);
-    }
-  }
-
-  function updateLauncherIcon(widgetState) {
-    if (widgetState.iconUrl) {
-      widgetState.elements.launcher.innerHTML = '<img src="' + escapeHtml(widgetState.iconUrl) + '" alt="Chat" />';
-    } else {
-      widgetState.elements.launcher.textContent = "💬";
     }
   }
 
@@ -611,8 +659,8 @@
     widgetState.elements.launcher.style.background = widgetState.primaryColor;
     widgetState.elements.widgetRoot.setAttribute("data-theme", widgetState.theme === "dark" ? "dark" : "light");
 
-    updateLauncherIcon(widgetState);
     setWidgetPosition(widgetState, widgetState.config.chatPosition);
+    syncLauncherState(widgetState);
 
     var brandingVisible = !!widgetState.showBranding && !!widgetState.brandingText;
     widgetState.elements.branding.setAttribute("data-visible", brandingVisible ? "true" : "false");
@@ -625,6 +673,11 @@
   function renderPrompts(widgetState, list) {
     var promptsContainer = widgetState.elements.prompts;
     promptsContainer.innerHTML = "";
+    promptsContainer.setAttribute("data-hidden", shouldShowStarterPrompts(widgetState) ? "false" : "true");
+
+    if (!shouldShowStarterPrompts(widgetState)) {
+      return;
+    }
 
     if (typeof list === "string") {
       list = parseJson(list, []);
@@ -668,6 +721,10 @@
 
     if (!message.skipPersist) {
       widgetState.history.push({ role: normalized.role, text: normalized.text });
+      if (normalized.role === "user") {
+        widgetState.uiState.hasStartedConversation = true;
+        saveStoredUiState(widgetState.config.botId, widgetState.uiState);
+      }
       persistHistory(widgetState);
     }
 
@@ -765,9 +822,10 @@
     widgetState.config.chatPosition = normalized.position;
     widgetState.configLoaded = true;
 
+    ensureConversationStartedState(widgetState);
     updateBranding(widgetState);
-    renderPrompts(widgetState, widgetState.starterPrompts);
     restoreHistory(widgetState);
+    renderPrompts(widgetState, widgetState.starterPrompts);
 
     if (!widgetState.history.length && widgetState.welcomeMessage) {
       appendMessage(widgetState, { role: "bot", text: widgetState.welcomeMessage });
@@ -913,6 +971,7 @@
   function bootstrapWidget(widgetState) {
     ensureHighZIndex(widgetState.config.botId);
     bindWidgetEvents(widgetState);
+    ensureConversationStartedState(widgetState);
     restoreHistory(widgetState);
     applyRemoteConfig(widgetState, {});
     loadRemoteConfig(widgetState);
