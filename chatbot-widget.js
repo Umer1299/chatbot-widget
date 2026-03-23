@@ -10,7 +10,7 @@
     return [
       "https://cdn.jsdelivr.net/npm/",
       ["flo", "wise"].join(""),
-      "-embed/dist/web.js"
+      "-embed/dist/web.umd.js"
     ].join("");
   }
 
