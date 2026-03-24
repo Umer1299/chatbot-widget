@@ -158,14 +158,12 @@
     );
   }
 
-  function hasUserMessages(history) {
-    for (var i = 0; i < history.length; i += 1) {
-      if (history[i] && history[i].role === "user") {
-        return true;
-      }
-    }
+  function hasStoredMessages(history) {
+    return !!(history && history.length);
+  }
 
-    return false;
+  function getCssBackgroundImage(url) {
+    return 'url("' + String(url || "").replace(/"/g, "%22") + '")';
   }
 
   function getApiUrl(apiHost, path) {
@@ -400,6 +398,7 @@
       '  right: 20px;',
       '  z-index: ' + MAX_Z_INDEX + ';',
       '  display: flex;',
+      '  flex-direction: column;',
       '  align-items: flex-end;',
       '  gap: 14px;',
       '  font-family: var(--chatbot-font-family, Inter, Arial, sans-serif);',
@@ -407,7 +406,7 @@
       '  color: #111827;',
       '  pointer-events: auto;',
       '}',
-      '.widget-root[data-position="left"] { left: 20px; right: auto; flex-direction: row-reverse; }',
+      '.widget-root[data-position="left"] { left: 20px; right: auto; align-items: flex-start; }',
       '.widget-root[data-theme="dark"] { color: #f9fafb; }',
       '.launcher {',
       '  width: 60px;',
@@ -428,9 +427,9 @@
       '  pointer-events: auto;',
       '}',
       '.panel {',
-      '  width: min(380px, calc(100vw - 24px));',
-      '  height: min(640px, calc(100vh - 96px - env(safe-area-inset-bottom)));',
-      '  max-height: calc(100vh - 96px - env(safe-area-inset-bottom));',
+      '  width: min(400px, calc(100vw - 32px));',
+      '  height: min(680px, calc(100vh - 116px - env(safe-area-inset-bottom)));',
+      '  max-height: calc(100vh - 116px - env(safe-area-inset-bottom));',
       '  border-radius: 24px;',
       '  overflow: hidden;',
       '  background: #f5f5f5;',
@@ -444,6 +443,8 @@
       '.chat-container { flex: 1; display: flex; flex-direction: column; height: 100%; width: 100%; background: #f5f5f5; pointer-events: auto; min-height: 0; }',
       '.widget-root[data-theme="dark"] .chat-container { background: #111827; }',
       '.header { padding: 16px; font-weight: 600; color: white; background: var(--chatbot-primary, #2563eb); display: flex; align-items: center; justify-content: space-between; gap: 12px; }',
+      '.header-main { display: flex; align-items: center; gap: 10px; min-width: 0; }',
+      '.header-avatar { width: 28px; height: 28px; border-radius: 999px; background-color: rgba(255, 255, 255, 0.18); background-repeat: no-repeat; background-position: center; background-size: cover; flex: 0 0 auto; }',
       '.header-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
       '.header-actions { display: flex; align-items: center; gap: 8px; }',
       '.header-btn { background: transparent; border: none; color: inherit; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; }',
@@ -490,7 +491,7 @@
       '.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }',
       '@keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }',
       '@media (max-width: 767px) {',
-      '  .widget-root { right: 0 !important; left: 0 !important; bottom: 0 !important; gap: 0; justify-content: flex-end; }',
+      '  .widget-root { right: 0 !important; left: 0 !important; bottom: 0 !important; gap: 0; justify-content: flex-end; align-items: stretch; }',
       '  .widget-root[data-position="left"] { left: 0 !important; right: 0 !important; }',
       '  .panel { width: 100vw !important; height: 100vh !important; max-height: 100vh !important; border-radius: 0 !important; }',
       '  .widget-root[data-open="true"] .panel { position: fixed; inset: 0; }',
@@ -501,7 +502,10 @@
       '  <div class="panel">',
       '    <div class="chat-container">',
       '      <div class="header">',
-      '        <div class="header-title" data-role="header-title">Chat Assistant</div>',
+      '        <div class="header-main">',
+      '          <div class="header-avatar" data-role="header-avatar"></div>',
+      '          <div class="header-title" data-role="header-title">Chat Assistant</div>',
+      '        </div>',
       '        <div class="header-actions">',
       '          <button class="header-btn" type="button" data-role="clear-btn" aria-label="Clear conversation">↺</button>',
       '          <button class="header-btn" type="button" data-role="close-btn" aria-label="Close chat">×</button>',
@@ -541,6 +545,7 @@
         closeBtn: root.querySelector('[data-role="close-btn"]'),
         clearBtn: root.querySelector('[data-role="clear-btn"]'),
         headerTitle: root.querySelector('[data-role="header-title"]'),
+        headerAvatar: root.querySelector('[data-role="header-avatar"]'),
         messages: root.querySelector('[data-role="messages"]'),
         prompts: root.querySelector('[data-role="prompts"]'),
         input: root.querySelector('[data-role="input"]'),
@@ -600,10 +605,8 @@
   }
 
   function ensureConversationStartedState(widgetState) {
-    if (hasUserMessages(widgetState.history)) {
-      widgetState.uiState.hasStartedConversation = true;
-      saveStoredUiState(widgetState.config.botId, widgetState.uiState);
-    }
+    widgetState.uiState.hasStartedConversation = hasStoredMessages(widgetState.history);
+    saveStoredUiState(widgetState.config.botId, widgetState.uiState);
   }
 
   function shouldShowStarterPrompts(widgetState) {
@@ -622,7 +625,7 @@
 
     widgetState.elements.launcher.textContent = "";
     widgetState.elements.launcher.style.fontSize = "0";
-    widgetState.elements.launcher.style.backgroundImage = 'url("' + (widgetState.iconUrl || getDefaultLauncherIcon()) + '")';
+    widgetState.elements.launcher.style.backgroundImage = getCssBackgroundImage(widgetState.iconUrl || getDefaultLauncherIcon());
   }
 
   function setWidgetPosition(widgetState, position) {
@@ -661,6 +664,9 @@
 
     setWidgetPosition(widgetState, widgetState.config.chatPosition);
     syncLauncherState(widgetState);
+
+    var headerIcon = widgetState.iconUrl || getDefaultLauncherIcon();
+    widgetState.elements.headerAvatar.style.backgroundImage = getCssBackgroundImage(headerIcon);
 
     var brandingVisible = !!widgetState.showBranding && !!widgetState.brandingText;
     widgetState.elements.branding.setAttribute("data-visible", brandingVisible ? "true" : "false");
@@ -721,10 +727,8 @@
 
     if (!message.skipPersist) {
       widgetState.history.push({ role: normalized.role, text: normalized.text });
-      if (normalized.role === "user") {
-        widgetState.uiState.hasStartedConversation = true;
-        saveStoredUiState(widgetState.config.botId, widgetState.uiState);
-      }
+      widgetState.uiState.hasStartedConversation = true;
+      saveStoredUiState(widgetState.config.botId, widgetState.uiState);
       persistHistory(widgetState);
     }
 
@@ -792,6 +796,8 @@
 
   function resetConversation(widgetState) {
     widgetState.history = [];
+    widgetState.uiState.hasStartedConversation = false;
+    saveStoredUiState(widgetState.config.botId, widgetState.uiState);
     persistHistory(widgetState);
     widgetState.elements.messages.innerHTML = "";
     if (widgetState.welcomeMessage) {
