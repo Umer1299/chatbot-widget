@@ -172,6 +172,12 @@
     var raw = String(url || "").trim();
     if (!raw) return "";
     if (raw.indexOf("data:") === 0) return raw;
+    if (/^\/\//.test(raw) && typeof window !== "undefined" && window.location && window.location.protocol) {
+      return window.location.protocol + raw;
+    }
+    if (/^\//.test(raw) && typeof window !== "undefined" && window.location && window.location.origin) {
+      return window.location.origin + raw;
+    }
     return encodeURI(raw);
   }
 
@@ -375,6 +381,27 @@
     var fallbackThemeConfig = widgetState.config.themeConfig || {};
     var position = remoteConfig.position || widgetState.config.chatPosition || fallbackThemeConfig.position || "right";
     var normalizedPrompts = remoteConfig.starterPrompts;
+    var resolvedIconUrl = remoteConfig.iconUrl ||
+      remoteConfig.iconURL ||
+      remoteConfig.icon ||
+      remoteConfig.avatar ||
+      remoteConfig.chatIcon ||
+      remoteConfig.launcherIcon ||
+      fallbackThemeConfig.iconUrl ||
+      fallbackThemeConfig.icon ||
+      "";
+    var resolvedBrandingName = remoteConfig.brandingName ||
+      remoteConfig.brandingText ||
+      remoteConfig.brandName ||
+      fallbackThemeConfig.brandingName ||
+      fallbackThemeConfig.brandingText ||
+      fallbackThemeConfig.brandName ||
+      "Chatflow AI";
+    var resolvedBrandingUrl = remoteConfig.brandingUrl ||
+      remoteConfig.brandUrl ||
+      fallbackThemeConfig.brandingUrl ||
+      fallbackThemeConfig.brandUrl ||
+      "https://chatflowai.io";
 
     if (typeof normalizedPrompts === "string") {
       normalizedPrompts = parseJson(normalizedPrompts, normalizedPrompts);
@@ -390,10 +417,10 @@
       welcomeMessage: remoteConfig.welcomeMessage || fallbackThemeConfig.welcomeMessage || "",
       starterPrompts: normalizedPrompts,
       inputPlaceholder: remoteConfig.inputPlaceholder || fallbackThemeConfig.inputPlaceholder || "Message...",
-      iconUrl: remoteConfig.iconUrl || fallbackThemeConfig.iconUrl || "",
+      iconUrl: resolvedIconUrl,
       showBranding: toBoolean(remoteConfig.showBranding, toBoolean(fallbackThemeConfig.showBranding, false)),
-      brandingText: remoteConfig.brandingText || fallbackThemeConfig.brandingText || "",
-      brandingUrl: remoteConfig.brandingUrl || fallbackThemeConfig.brandingUrl || "",
+      brandingText: resolvedBrandingName,
+      brandingUrl: resolvedBrandingUrl,
       autoOpen: toBoolean(remoteConfig.autoOpen, toBoolean(fallbackThemeConfig.autoOpen, false)),
       theme: (remoteConfig.theme || fallbackThemeConfig.theme || "light").toLowerCase() === "dark" ? "dark" : "light",
       fontFamily: remoteConfig.fontFamily || fallbackThemeConfig.fontFamily || "Inter, Arial, sans-serif",
@@ -686,11 +713,18 @@
     var headerIcon = widgetState.iconUrl || getDefaultLauncherIcon();
     widgetState.elements.headerAvatar.style.backgroundImage = getCssBackgroundImage(headerIcon);
 
-    var brandingVisible = !!widgetState.showBranding && !!widgetState.brandingText;
-    widgetState.elements.branding.setAttribute("data-visible", brandingVisible ? "true" : "false");
-    widgetState.elements.brandingLink.textContent = widgetState.brandingText || "";
-    widgetState.elements.brandingLink.href = widgetState.brandingUrl || "#";
-    widgetState.elements.brandingLink.style.pointerEvents = brandingVisible ? "auto" : "none";
+    var shouldUseCustomBranding = !!widgetState.showBranding;
+    var brandingName = shouldUseCustomBranding
+      ? (widgetState.brandingText || "Chatflow AI")
+      : "Chatflow AI";
+    var brandingHref = shouldUseCustomBranding
+      ? (widgetState.brandingUrl || "https://chatflowai.io")
+      : "https://chatflowai.io";
+
+    widgetState.elements.branding.setAttribute("data-visible", "true");
+    widgetState.elements.brandingLink.textContent = "Powered by " + brandingName;
+    widgetState.elements.brandingLink.href = brandingHref;
+    widgetState.elements.brandingLink.style.pointerEvents = "auto";
     widgetState.elements.input.placeholder = widgetState.placeholder || "Message...";
   }
 
@@ -748,6 +782,7 @@
       if (normalized.role === "user") {
         widgetState.uiState.hasStartedConversation = true;
         saveStoredUiState(widgetState.config.botId, widgetState.uiState);
+        renderPrompts(widgetState, widgetState.starterPrompts);
       }
       persistHistory(widgetState);
     }
@@ -820,6 +855,7 @@
     saveStoredUiState(widgetState.config.botId, widgetState.uiState);
     persistHistory(widgetState);
     widgetState.elements.messages.innerHTML = "";
+    renderPrompts(widgetState, widgetState.starterPrompts);
     if (widgetState.welcomeMessage) {
       appendMessage(widgetState, { role: "bot", text: widgetState.welcomeMessage });
     }
