@@ -522,7 +522,7 @@ if (!Array.isArray(normalizedPrompts)) {
       '.widget-root[data-theme="dark"] .scroll-bottom-btn { background: rgba(17,24,39,0.92); color: #e5e7eb; border-color: #374151; }',
       '.user { align-items: flex-end; }',
       '.bot { max-width: 78%;  border-radius: 14px; align-items: flex-start; }',
-      '.welcome-msg { padding: 8px 0px; max-width: 100%; max-height: 110px;  border-radius: 14px; align-items: flex-start; overflow-y: auto; }',
+      '.welcome-msg { padding: 8px 16px; max-width: 100%; max-height: 110px;  border-radius: 14px; align-items: flex-start; overflow-y: auto; }',
       '.bubble-msg { max-width: 78%; padding: 12px 14px; border-radius: 14px; font-size: 1em; line-height: 1.5; word-break: break-word; white-space: normal; }',
       '.bubble-msg p { margin: 4px 0; }',
       '.bubble-msg ul { padding-left: 18px; margin: 6px 0; }',
