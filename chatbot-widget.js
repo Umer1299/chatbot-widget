@@ -464,6 +464,7 @@
       '  height: 60px;',
       '  border: none;',
       '  border-radius: 999px;',
+      '  overflow: hidden;',
       '  cursor: pointer;',
       '  color: #fff;',
       '  background-color: var(--chatbot-primary, #2563eb);',
@@ -514,7 +515,7 @@
       '.bubble-msg pre { background: #111; color: #fff; padding: 10px; border-radius: 8px; overflow: auto; margin-top: 6px; }',
       '.bubble-msg code { background: #e5e7eb; padding: 2px 4px; border-radius: 4px; }',
       '.widget-root[data-theme="dark"] .bubble-msg code { background: #1f2937; color: #f9fafb; }',
-      '.starter-prompts { padding: 0 16px 12px; display: flex; flex-direction: column; gap: 8px; background: #f5f5f5; max-height: 200px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--chatbot-primary, #2563eb) transparent; }',
+      '.starter-prompts { padding: 0 16px 12px; display: flex; flex-direction: column; gap: 8px; background: #f5f5f5; max-height: 150px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--chatbot-primary, #2563eb) transparent; }',
       '.starter-prompts::-webkit-scrollbar { width: 6px; }',
       '.starter-prompts::-webkit-scrollbar-thumb { background: var(--chatbot-primary, #2563eb); border-radius: 10px; }',
       '.starter-prompts:empty { display: none; }',
@@ -683,7 +684,7 @@
 
     var launcherIcon = normalizeIconUrl(widgetState.iconUrl || getDefaultLauncherIcon(), widgetState.config.apiHost);
     widgetState.elements.launcher.innerHTML = launcherIcon
-      ? '<img src="' + launcherIcon.replace(/"/g, "%22") + '" alt="" aria-hidden="true" style="width:100%;height:100%;object-fit:cover;border-radius:999px;display:block;" />'
+      ? '<img src="' + launcherIcon.replace(/"/g, "%22") + '" alt="" aria-hidden="true" style="width:100%;height:100%;object-fit:cover;border-radius:999px;display:block;transform:scale(1.12);" />'
       : "";
     widgetState.elements.launcher.style.fontSize = "0";
     widgetState.elements.launcher.style.backgroundImage = "none";
@@ -729,18 +730,11 @@
     var headerIcon = widgetState.iconUrl || getDefaultLauncherIcon();
     widgetState.elements.headerAvatar.style.backgroundImage = getCssBackgroundImage(headerIcon, widgetState.config.apiHost);
 
-    var shouldUseCustomBranding = !!widgetState.showBranding;
-    var brandingName = shouldUseCustomBranding
-      ? (widgetState.brandingText || "Chatflow AI")
-      : "Chatflow AI";
-    var brandingHref = shouldUseCustomBranding
-      ? (widgetState.brandingUrl || "https://chatflowai.io")
-      : "https://chatflowai.io";
-
-    widgetState.elements.branding.setAttribute("data-visible", "true");
-    widgetState.elements.brandingLink.textContent = "Powered by " + brandingName;
-    widgetState.elements.brandingLink.href = brandingHref;
-    widgetState.elements.brandingLink.style.pointerEvents = "auto";
+    var shouldShowBranding = !!widgetState.showBranding && !!widgetState.brandingText && !!widgetState.brandingUrl;
+    widgetState.elements.branding.setAttribute("data-visible", shouldShowBranding ? "true" : "false");
+    widgetState.elements.brandingLink.textContent = shouldShowBranding ? widgetState.brandingText : "";
+    widgetState.elements.brandingLink.href = shouldShowBranding ? widgetState.brandingUrl : "#";
+    widgetState.elements.brandingLink.style.pointerEvents = shouldShowBranding ? "auto" : "none";
     widgetState.elements.input.placeholder = widgetState.placeholder || "Message...";
   }
 
@@ -833,7 +827,16 @@
     msg.appendChild(bubble);
     widgetState.elements.messages.appendChild(msg);
     updateMessageScrollMode(widgetState);
-    scrollMessagesToBottom(widgetState);
+
+    var isOnlyWelcomeMessage = normalized.role === "bot" &&
+      widgetState.history.length === 1 &&
+      normalized.text === widgetState.welcomeMessage;
+
+    if (isOnlyWelcomeMessage) {
+      widgetState.elements.messages.scrollTop = 0;
+    } else {
+      scrollMessagesToBottom(widgetState);
+    }
 
     return bubble;
   }
