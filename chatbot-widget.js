@@ -390,7 +390,7 @@
   function normalizeRemoteConfig(widgetState, remoteConfig) {
     var fallbackThemeConfig = widgetState.config.themeConfig || {};
     var position = remoteConfig.position || widgetState.config.chatPosition || fallbackThemeConfig.position || "right";
-    var normalizedPrompts = remoteConfig.starterPrompts;
+    var normalizedPrompts = remoteConfigPrompts;
     var resolvedIconUrl = remoteConfig.iconUrl ||
       remoteConfig.iconURL ||
       remoteConfig.icon ||
@@ -418,7 +418,7 @@
     }
 
     if (!Array.isArray(normalizedPrompts)) {
-      normalizedPrompts = Array.isArray(fallbackThemeConfig.starterPrompts) ? fallbackThemeConfig.starterPrompts : [];
+      normalizedPrompts = Array.isArray(fallbackThemeConfigPrompts) ? fallbackThemeConfigPrompts : [];
     }
 
     return {
