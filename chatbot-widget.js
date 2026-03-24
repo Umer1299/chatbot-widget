@@ -502,6 +502,8 @@ if (!Array.isArray(normalizedPrompts)) {
       '.header-actions { display: flex; align-items: center; gap: 8px; }',
       '.header-btn { background: transparent; border: none; color: inherit; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; }',
       '.messages { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 16px 12px; background: #f5f5f5; scrollbar-width: thin; scrollbar-color: var(--chatbot-primary, #2563eb) transparent; }',
+      '.messages.only-initial .bot {max-width: 78%;}',
+      '.messages.only-initial .bubble-msg {max-width: 78% ; width: 100%; max-height: 120px; overflow-y: auto;margin-top: 8px}',
       '.messages-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }',
       '.messages::-webkit-scrollbar { width: 6px; }',
       '.messages::-webkit-scrollbar-thumb { background: var(--chatbot-primary, #2563eb); border-radius: 10px; }',
@@ -513,7 +515,6 @@ if (!Array.isArray(normalizedPrompts)) {
       '.widget-root[data-theme="dark"] .scroll-bottom-btn { background: rgba(17,24,39,0.92); color: #e5e7eb; border-color: #374151; }',
       '.user { align-items: flex-end; }',
       '.bot { max-width: 78%;  border-radius: 14px; align-items: flex-start; }',
-      '.welcome-msg { padding: 8px 8px; width: 90%; max-width: 90% !important;   border-radius: 14px; align-items: flex-start; overflow-y: auto; margin-left: 0px; margin-right: 0px; }',
       '.bubble-msg { max-width: 78%; padding: 12px 14px; border-radius: 14px; font-size: 1em; line-height: 1.5; word-break: break-word; white-space: normal; }',
       '.bubble-msg p { margin: 4px 0; }',
       '.bubble-msg ul { padding-left: 18px; margin: 6px 0; }',
@@ -570,26 +571,26 @@ if (!Array.isArray(normalizedPrompts)) {
       '          <div class="header-title" data-role="header-title">Chat Assistant</div>',
       '        </div>',
       '        <div class="header-actions">',
-      '          <button class="header-btn" type="button" data-role="clear-btn" aria-label="Clear conversation">↺</button>',
-      '          <button class="header-btn" type="button" data-role="close-btn" aria-label="Close chat">×</button>',
+      '          <button class="header-btn" type="button" data-role="clear-btn" aria-label="Clear conversation">â†º</button>',
+      '          <button class="header-btn" type="button" data-role="close-btn" aria-label="Close chat">Ã—</button>',
       '        </div>',
       '      </div>',
       '      <div class="messages-wrap">',
       '        <div class="messages" data-role="messages"></div>',
-      '        <button class="scroll-bottom-btn" type="button" data-role="scroll-bottom" aria-label="Scroll to latest">⌄</button>',
+      '        <button class="scroll-bottom-btn" type="button" data-role="scroll-bottom" aria-label="Scroll to latest">âŒ„</button>',
       '      </div>',
       '      <div class="starter-prompts" data-role="prompts"></div>',
       '      <div class="input-area">',
       '        <label class="sr-only" for="chatbot-widget-input">Message</label>',
       '        <input id="chatbot-widget-input" class="chat-input" data-role="input" placeholder="Message..." />',
-      '        <button class="send-btn" type="button" data-role="send-btn" aria-label="Send message">➤</button>',
+      '        <button class="send-btn" type="button" data-role="send-btn" aria-label="Send message">âž¤</button>',
       '      </div>',
       '      <div class="branding" data-role="branding" data-visible="false">',
       '        <a class="branding-link" data-role="branding-link" href="#" target="_blank" rel="noopener noreferrer"></a>',
       '      </div>',
       '    </div>',
       '  </div>',
-      '  <button class="launcher" type="button" data-role="launcher" aria-label="Open chat">💬</button>',
+      '  <button class="launcher" type="button" data-role="launcher" aria-label="Open chat">ðŸ’¬</button>',
       '</div>'
     ].join("");
   }
@@ -759,6 +760,7 @@ if (!Array.isArray(normalizedPrompts)) {
     promptsContainer.setAttribute("data-hidden", shouldShowStarterPrompts(widgetState) ? "false" : "true");
 
     if (!shouldShowStarterPrompts(widgetState)) {
+      updateMessageScrollMode(widgetState);
       return;
     }
 
@@ -782,6 +784,7 @@ if (!Array.isArray(normalizedPrompts)) {
       });
       promptsContainer.appendChild(btn);
     }
+    updateMessageScrollMode(widgetState);
   }
 
   function createTypingMarkup() {
@@ -801,17 +804,16 @@ if (!Array.isArray(normalizedPrompts)) {
   }
 
   function updateMessageScrollMode(widgetState) {
-    var onlyWelcomeMessage = widgetState.history.length === 1 &&
-      widgetState.history[0] &&
-      widgetState.history[0].role === "bot" &&
-      widgetState.history[0].text === widgetState.welcomeMessage;
+  var isInitialState = shouldShowStarterPrompts(widgetState);
 
-    widgetState.elements.messages.style.overflowY = onlyWelcomeMessage ? "hidden" : "auto";
+  if (isInitialState) {
+    widgetState.elements.messages.classList.add("only-initial");
+  } else {
+    widgetState.elements.messages.classList.remove("only-initial");
   }
 
-  function persistHistory(widgetState) {
-    saveStoredHistory(widgetState.config.botId, widgetState.history);
-  }
+  widgetState.elements.messages.style.overflowY = "auto";
+}
 
   function appendMessage(widgetState, message) {
     var normalized = {
@@ -831,13 +833,7 @@ if (!Array.isArray(normalizedPrompts)) {
 
     var msg = document.createElement("div");
 
-   var isWelcome =
-   normalized.role === "bot" &&
-   normalized.text === widgetState.welcomeMessage;
-
-msg.className = "message " + normalized.role + (isWelcome ? " welcome-msg" : "");
-
-  msg.className = "message " + normalized.role + (isWelcome ? " welcome-msg" : "");
+   msg.className = "message " + normalized.role;
 
     var bubble = document.createElement("div");
     bubble.className = "bubble-msg";
