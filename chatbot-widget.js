@@ -513,6 +513,9 @@
       '.user { align-items: flex-end; }',
       '.bot { align-items: flex-start; }',
       '.bubble-msg { max-width: 75%; padding: 12px 14px; border-radius: 16px; font-size: 1em; line-height: 1.5; word-break: break-word; white-space: normal; }',
+      '.message.welcome { padding: 0 12px; margin-bottom: 10px; }',
+      '.bubble-msg.welcome-bubble { max-width: 100%; width: 100%; background: #e5e7eb; color: #111827; border-radius: 14px; border-bottom-left-radius: 14px; padding: 12px 16px; }',
+      '.widget-root[data-theme="dark"] .bubble-msg.welcome-bubble { background: #374151; color: #f9fafb; }',
       '.bubble-msg p { margin: 4px 0; }',
       '.bubble-msg ul { padding-left: 18px; margin: 6px 0; }',
       '.bubble-msg li { margin: 3px 0; }',
@@ -799,12 +802,7 @@
   }
 
   function updateMessageScrollMode(widgetState) {
-    var onlyWelcomeMessage = widgetState.history.length === 1 &&
-      widgetState.history[0] &&
-      widgetState.history[0].role === "bot" &&
-      widgetState.history[0].text === widgetState.welcomeMessage;
-
-    widgetState.elements.messages.style.overflowY = onlyWelcomeMessage ? "hidden" : "auto";
+    widgetState.elements.messages.style.overflowY = "auto";
   }
 
   function persistHistory(widgetState) {
@@ -833,6 +831,10 @@
     var bubble = document.createElement("div");
     bubble.className = "bubble-msg";
 
+    var isWelcomeBubble = normalized.role === "bot" &&
+      normalized.text === widgetState.welcomeMessage &&
+      !hasUserMessages(widgetState.history);
+
     if (normalized.role === "user") {
       bubble.style.background = widgetState.primaryColor;
       bubble.style.color = "white";
@@ -844,9 +846,9 @@
       bubble.style.borderBottomLeftRadius = "6px";
       bubble.innerHTML = renderMarkdown(normalized.text);
 
-      var isWelcomeBubble = normalized.text === widgetState.welcomeMessage && !hasUserMessages(widgetState.history);
       if (isWelcomeBubble) {
-        bubble.style.maxWidth = "100%";
+        msg.classList.add("welcome");
+        bubble.classList.add("welcome-bubble");
       }
     }
 
