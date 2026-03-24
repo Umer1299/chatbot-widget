@@ -390,7 +390,17 @@
   function normalizeRemoteConfig(widgetState, remoteConfig) {
     var fallbackThemeConfig = widgetState.config.themeConfig || {};
     var position = remoteConfig.position || widgetState.config.chatPosition || fallbackThemeConfig.position || "right";
-    var normalizedPrompts = remoteConfigPrompts;
+    var normalizedPrompts = remoteConfig.starterPrompts;
+
+if (typeof normalizedPrompts === "string") {
+  normalizedPrompts = parseJson(normalizedPrompts, normalizedPrompts);
+}
+
+if (!Array.isArray(normalizedPrompts)) {
+  normalizedPrompts = Array.isArray(fallbackThemeConfig.starterPrompts)
+    ? fallbackThemeConfig.starterPrompts
+    : [];
+}
     var resolvedIconUrl = remoteConfig.iconUrl ||
       remoteConfig.iconURL ||
       remoteConfig.icon ||
@@ -418,7 +428,7 @@
     }
 
     if (!Array.isArray(normalizedPrompts)) {
-      normalizedPrompts = Array.isArray(fallbackThemeConfigPrompts) ? fallbackThemeConfigPrompts : [];
+      normalizedPrompts = Array.isArray(fallbackThemeConfig.starterPrompts) ? fallbackThemeConfigPrompts : [];
     }
 
     return {
