@@ -571,7 +571,7 @@ if (!Array.isArray(normalizedPrompts)) {
       '          <div class="header-title" data-role="header-title">Chat Assistant</div>',
       '        </div>',
       '        <div class="header-actions">',
-      '          <button class="header-btn" data-role="clear-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 3-6" stroke="white" stroke-width="2"/></svg></button>',
+      '          <button class="header-btn" data-role="clear-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 3-6" stroke="white" stroke-width="2"/><path d="M3 3v6h6" stroke="white" stroke-width="2"/></svg></button>',
       '          <button class="header-btn" data-role="close-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 6L18 18M18 6L6 18" stroke="white" stroke-width="2"/></svg></button>',
       '        </div>',
       '      </div>',
@@ -778,10 +778,11 @@ if (!Array.isArray(normalizedPrompts)) {
       btn.className = "prompt";
       btn.type = "button";
       btn.textContent = list[i];
-      btn.addEventListener("click", function (event) {
-        widgetState.elements.input.value = event.currentTarget.textContent || "";
-        sendMessage(widgetState);
-      });
+      btn.onclick = function (event) {
+  var text = event.currentTarget.textContent || "";
+  widgetState.elements.input.value = text;
+  sendMessage(widgetState);
+};
       promptsContainer.appendChild(btn);
     }
     updateMessageScrollMode(widgetState);
@@ -1078,9 +1079,11 @@ if (!Array.isArray(normalizedPrompts)) {
       resetConversation(widgetState);
     });
 
-    widgetState.elements.sendBtn.addEventListener("click", function () {
-      sendMessage(widgetState);
-    });
+   if (widgetState.elements.sendBtn) {
+  widgetState.elements.sendBtn.onclick = function () {
+    sendMessage(widgetState);
+  };
+}
 
     widgetState.elements.input.addEventListener("keydown", function (event) {
       if (event.key === "Enter" && !event.shiftKey) {
