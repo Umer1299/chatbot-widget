@@ -842,6 +842,9 @@ if (!Array.isArray(normalizedPrompts)) {
 
    var isWelcome =
    normalized.role === "bot" &&
+   normalized.text === widgetState.welcomeMessage;
+
+msg.className = "message " + normalized.role + (isWelcome ? " welcome-msg" : "");
    widgetState.history.length === 0;
 
   msg.className = "message " + normalized.role + (isWelcome ? " welcome-msg" : "");
