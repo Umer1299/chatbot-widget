@@ -501,10 +501,15 @@
       '.header-actions { display: flex; align-items: center; gap: 8px; }',
       '.header-btn { background: transparent; border: none; color: inherit; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; }',
       '.messages { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; background: #f5f5f5; scrollbar-width: thin; scrollbar-color: var(--chatbot-primary, #2563eb) transparent; }',
+      '.messages-wrap { position: relative; flex: 1; min-height: 0; }',
       '.messages::-webkit-scrollbar { width: 6px; }',
       '.messages::-webkit-scrollbar-thumb { background: var(--chatbot-primary, #2563eb); border-radius: 10px; }',
       '.widget-root[data-theme="dark"] .messages { background: #111827; }',
+      '.messages .message:first-child { margin-top: 8px; }',
       '.message { margin-bottom: 12px; display: flex; flex-direction: column; max-width: 100%; }',
+      '.scroll-bottom-btn { position: absolute; right: 14px; bottom: 14px; width: 30px; height: 30px; border-radius: 999px; border: 1px solid #d1d5db; background: rgba(255,255,255,0.95); color: #374151; display: none; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(15,23,42,0.2); z-index: 2; }',
+      '.scroll-bottom-btn[data-visible="true"] { display: inline-flex; }',
+      '.widget-root[data-theme="dark"] .scroll-bottom-btn { background: rgba(17,24,39,0.92); color: #e5e7eb; border-color: #374151; }',
       '.user { align-items: flex-end; }',
       '.bot { align-items: flex-start; }',
       '.bubble-msg { max-width: 75%; padding: 12px 14px; border-radius: 16px; font-size: 1em; line-height: 1.5; word-break: break-word; white-space: normal; }',
@@ -551,6 +556,7 @@
       '  .panel { width: 100vw !important; height: 100vh !important; max-height: 100vh !important; border-radius: 0 !important; }',
       '  .widget-root[data-open="true"] .panel { position: fixed; inset: 0; }',
       '  .launcher { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); }',
+      '  .scroll-bottom-btn { display: none !important; }',
       '}',
       '</style>',
       '<div class="widget-root" data-position="' + (chatPosition === "left" ? "left" : "right") + '" data-open="false" data-theme="light">',
@@ -566,7 +572,10 @@
       '          <button class="header-btn" type="button" data-role="close-btn" aria-label="Close chat">×</button>',
       '        </div>',
       '      </div>',
-      '      <div class="messages" data-role="messages"></div>',
+      '      <div class="messages-wrap">',
+      '        <div class="messages" data-role="messages"></div>',
+      '        <button class="scroll-bottom-btn" type="button" data-role="scroll-bottom" aria-label="Scroll to latest">⌄</button>',
+      '      </div>',
       '      <div class="starter-prompts" data-role="prompts"></div>',
       '      <div class="input-area">',
       '        <label class="sr-only" for="chatbot-widget-input">Message</label>',
@@ -606,6 +615,7 @@
         headerTitle: root.querySelector('[data-role="header-title"]'),
         headerAvatar: root.querySelector('[data-role="header-avatar"]'),
         messages: root.querySelector('[data-role="messages"]'),
+        scrollBottomBtn: root.querySelector('[data-role="scroll-bottom"]'),
         prompts: root.querySelector('[data-role="prompts"]'),
         input: root.querySelector('[data-role="input"]'),
         sendBtn: root.querySelector('[data-role="send-btn"]'),
@@ -686,7 +696,7 @@
     var launcherIcon = normalizeIconUrl(widgetState.iconUrl || getDefaultLauncherIcon(), widgetState.config.apiHost);
     widgetState.elements.launcher.style.background = "transparent";
     widgetState.elements.launcher.innerHTML = launcherIcon
-      ? '<img src="' + launcherIcon.replace(/"/g, "%22") + '" alt="" aria-hidden="true" style="width:100%;height:100%;object-fit:fill;border-radius:999px;display:block;" />'
+      ? '<img src="' + launcherIcon.replace(/"/g, "%22") + '" alt="" aria-hidden="true" style="width:100%;height:100%;object-fit:cover;border-radius:999px;display:block;transform:scale(1.35);" />'
       : "";
     widgetState.elements.launcher.style.fontSize = "0";
     widgetState.elements.launcher.style.backgroundImage = "none";
@@ -712,6 +722,7 @@
       setTimeout(function () {
         widgetState.elements.input.focus();
         widgetState.elements.messages.scrollTop = widgetState.elements.messages.scrollHeight;
+        updateScrollBottomButton(widgetState);
       }, 0);
     }
   }
@@ -777,6 +788,14 @@
 
   function scrollMessagesToBottom(widgetState) {
     widgetState.elements.messages.scrollTop = widgetState.elements.messages.scrollHeight;
+    updateScrollBottomButton(widgetState);
+  }
+
+  function updateScrollBottomButton(widgetState) {
+    if (!widgetState.elements.scrollBottomBtn) return;
+    var remaining = widgetState.elements.messages.scrollHeight - widgetState.elements.messages.scrollTop - widgetState.elements.messages.clientHeight;
+    var shouldShow = remaining > 36;
+    widgetState.elements.scrollBottomBtn.setAttribute("data-visible", shouldShow ? "true" : "false");
   }
 
   function updateMessageScrollMode(widgetState) {
@@ -836,6 +855,7 @@
 
     if (isOnlyWelcomeMessage) {
       widgetState.elements.messages.scrollTop = 0;
+      updateScrollBottomButton(widgetState);
     } else {
       scrollMessagesToBottom(widgetState);
     }
@@ -879,6 +899,7 @@
       });
     }
     updateMessageScrollMode(widgetState);
+    updateScrollBottomButton(widgetState);
   }
 
   function resetConversation(widgetState) {
@@ -892,6 +913,7 @@
       appendMessage(widgetState, { role: "bot", text: widgetState.welcomeMessage });
     }
     updateMessageScrollMode(widgetState);
+    updateScrollBottomButton(widgetState);
   }
 
   function normalizeConfigResponse(data) {
@@ -1061,6 +1083,16 @@
         sendMessage(widgetState);
       }
     });
+
+    widgetState.elements.messages.addEventListener("scroll", function () {
+      updateScrollBottomButton(widgetState);
+    });
+
+    if (widgetState.elements.scrollBottomBtn) {
+      widgetState.elements.scrollBottomBtn.addEventListener("click", function () {
+        scrollMessagesToBottom(widgetState);
+      });
+    }
   }
 
   function bootstrapWidget(widgetState) {
