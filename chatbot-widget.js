@@ -392,15 +392,16 @@
     var position = remoteConfig.position || widgetState.config.chatPosition || fallbackThemeConfig.position || "right";
     var normalizedPrompts = remoteConfig.starterPrompts;
 
-if (typeof normalizedPrompts === "string") {
-  normalizedPrompts = parseJson(normalizedPrompts, normalizedPrompts);
-}
+    if (typeof normalizedPrompts === "string") {
+      normalizedPrompts = parseJson(normalizedPrompts, normalizedPrompts);
+    }
 
-if (!Array.isArray(normalizedPrompts)) {
-  normalizedPrompts = Array.isArray(fallbackThemeConfig.starterPrompts)
-    ? fallbackThemeConfig.starterPrompts
-    : [];
-}
+    if (!Array.isArray(normalizedPrompts)) {
+      normalizedPrompts = Array.isArray(fallbackThemeConfig.starterPrompts)
+        ? fallbackThemeConfig.starterPrompts
+        : [];
+    }
+
     var resolvedIconUrl = remoteConfig.iconUrl ||
       remoteConfig.iconURL ||
       remoteConfig.icon ||
@@ -410,6 +411,7 @@ if (!Array.isArray(normalizedPrompts)) {
       fallbackThemeConfig.iconUrl ||
       fallbackThemeConfig.icon ||
       "";
+
     var resolvedBrandingName = remoteConfig.brandingName ||
       remoteConfig.brandingText ||
       remoteConfig.brandName ||
@@ -417,11 +419,13 @@ if (!Array.isArray(normalizedPrompts)) {
       fallbackThemeConfig.brandingText ||
       fallbackThemeConfig.brandName ||
       "Chatflow AI";
+
     var resolvedBrandingUrl = remoteConfig.brandingUrl ||
       remoteConfig.brandUrl ||
       fallbackThemeConfig.brandingUrl ||
       fallbackThemeConfig.brandUrl ||
       "https://chatflowai.io";
+
     return {
       name: remoteConfig.name || fallbackThemeConfig.title || "Chat Assistant",
       primaryColor: remoteConfig.primaryColor || fallbackThemeConfig.primaryColor || "#2563eb",
@@ -754,6 +758,16 @@ if (!Array.isArray(normalizedPrompts)) {
     widgetState.elements.input.placeholder = widgetState.placeholder || "Message...";
   }
 
+  function submitPrompt(widgetState, text) {
+    var normalizedText = String(text || "").trim();
+    if (!normalizedText || widgetState.isLoading) {
+      return;
+    }
+
+    widgetState.elements.input.value = normalizedText;
+    sendMessage(widgetState);
+  }
+
   function renderPrompts(widgetState, list) {
     var promptsContainer = widgetState.elements.prompts;
     promptsContainer.innerHTML = "";
@@ -778,13 +792,14 @@ if (!Array.isArray(normalizedPrompts)) {
       btn.className = "prompt";
       btn.type = "button";
       btn.textContent = list[i];
-      btn.onclick = function (event) {
-  var text = event.currentTarget.textContent || "";
-  widgetState.elements.input.value = text;
-  sendMessage(widgetState);
-};
+      btn.addEventListener("click", function (event) {
+        event.preventDefault();
+        var text = event.currentTarget && event.currentTarget.textContent;
+        submitPrompt(widgetState, text);
+      });
       promptsContainer.appendChild(btn);
     }
+
     updateMessageScrollMode(widgetState);
   }
 
@@ -805,16 +820,16 @@ if (!Array.isArray(normalizedPrompts)) {
   }
 
   function updateMessageScrollMode(widgetState) {
-  var isInitialState = shouldShowStarterPrompts(widgetState);
+    var isInitialState = shouldShowStarterPrompts(widgetState);
 
-  if (isInitialState) {
-    widgetState.elements.messages.classList.add("only-initial");
-  } else {
-    widgetState.elements.messages.classList.remove("only-initial");
+    if (isInitialState) {
+      widgetState.elements.messages.classList.add("only-initial");
+    } else {
+      widgetState.elements.messages.classList.remove("only-initial");
+    }
+
+    widgetState.elements.messages.style.overflowY = "auto";
   }
-
-  widgetState.elements.messages.style.overflowY = "auto";
-}
 
   function appendMessage(widgetState, message) {
     var normalized = {
@@ -833,8 +848,7 @@ if (!Array.isArray(normalizedPrompts)) {
     }
 
     var msg = document.createElement("div");
-
-   msg.className = "message " + normalized.role;
+    msg.className = "message " + normalized.role;
 
     var bubble = document.createElement("div");
     bubble.className = "bubble-msg";
@@ -1030,6 +1044,14 @@ if (!Array.isArray(normalizedPrompts)) {
     });
   }
 
+  function handleSendAction(widgetState, event) {
+    if (event && typeof event.preventDefault === "function") {
+      event.preventDefault();
+    }
+
+    sendMessage(widgetState);
+  }
+
   function sendMessage(widgetState) {
     if (widgetState.isLoading) {
       return;
@@ -1077,18 +1099,19 @@ if (!Array.isArray(normalizedPrompts)) {
 
     widgetState.elements.clearBtn.addEventListener("click", function () {
       resetConversation(widgetState);
+      widgetState.elements.input.value = "";
+      setWidgetOpen(widgetState, false);
     });
 
-   if (widgetState.elements.sendBtn) {
-  widgetState.elements.sendBtn.onclick = function () {
-    sendMessage(widgetState);
-  };
-}
+    if (widgetState.elements.sendBtn) {
+      widgetState.elements.sendBtn.addEventListener("click", function (event) {
+        handleSendAction(widgetState, event);
+      });
+    }
 
     widgetState.elements.input.addEventListener("keydown", function (event) {
       if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        sendMessage(widgetState);
+        handleSendAction(widgetState, event);
       }
     });
 
