@@ -501,7 +501,7 @@
       '.header-actions { display: flex; align-items: center; gap: 8px; }',
       '.header-btn { background: transparent; border: none; color: inherit; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; }',
       '.messages { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; background: #f5f5f5; scrollbar-width: thin; scrollbar-color: var(--chatbot-primary, #2563eb) transparent; }',
-      '.messages-wrap { position: relative; flex: 1; min-height: 0; }',
+      '.messages-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }',
       '.messages::-webkit-scrollbar { width: 6px; }',
       '.messages::-webkit-scrollbar-thumb { background: var(--chatbot-primary, #2563eb); border-radius: 10px; }',
       '.widget-root[data-theme="dark"] .messages { background: #111827; }',
