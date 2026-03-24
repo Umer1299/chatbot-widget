@@ -168,21 +168,31 @@
     return false;
   }
 
-  function normalizeIconUrl(url) {
+  function normalizeIconUrl(url, baseHost) {
     var raw = String(url || "").trim();
     if (!raw) return "";
     if (raw.indexOf("data:") === 0) return raw;
+    if (raw.indexOf("blob:") === 0) return raw;
+    if (/^https?:\/\//i.test(raw)) return encodeURI(raw);
     if (/^\/\//.test(raw) && typeof window !== "undefined" && window.location && window.location.protocol) {
       return window.location.protocol + raw;
     }
-    if (/^\//.test(raw) && typeof window !== "undefined" && window.location && window.location.origin) {
-      return window.location.origin + raw;
+    if (/^\//.test(raw)) {
+      if (baseHost) {
+        return String(baseHost).replace(/\/$/, "") + raw;
+      }
+      if (typeof window !== "undefined" && window.location && window.location.origin) {
+        return window.location.origin + raw;
+      }
+    }
+    if (baseHost && !/^https?:\/\//i.test(raw)) {
+      return String(baseHost).replace(/\/$/, "") + "/" + raw.replace(/^\//, "");
     }
     return encodeURI(raw);
   }
 
-  function getCssBackgroundImage(url) {
-    var normalized = normalizeIconUrl(url);
+  function getCssBackgroundImage(url, baseHost) {
+    var normalized = normalizeIconUrl(url, baseHost);
     return normalized ? ('url("' + normalized.replace(/"/g, "%22") + '")') : "none";
   }
 
@@ -504,7 +514,9 @@
       '.bubble-msg pre { background: #111; color: #fff; padding: 10px; border-radius: 8px; overflow: auto; margin-top: 6px; }',
       '.bubble-msg code { background: #e5e7eb; padding: 2px 4px; border-radius: 4px; }',
       '.widget-root[data-theme="dark"] .bubble-msg code { background: #1f2937; color: #f9fafb; }',
-      '.starter-prompts { padding: 0 16px 12px; display: flex; flex-direction: column; gap: 8px; background: #f5f5f5; }',
+      '.starter-prompts { padding: 0 16px 12px; display: flex; flex-direction: column; gap: 8px; background: #f5f5f5; max-height: 200px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--chatbot-primary, #2563eb) transparent; }',
+      '.starter-prompts::-webkit-scrollbar { width: 6px; }',
+      '.starter-prompts::-webkit-scrollbar-thumb { background: var(--chatbot-primary, #2563eb); border-radius: 10px; }',
       '.starter-prompts:empty { display: none; }',
       '.widget-root[data-theme="dark"] .starter-prompts { background: #111827; }',
       '.starter-prompts[data-hidden="true"] { display: none; }',
@@ -524,10 +536,11 @@
       '.typing span { width: 6px; height: 6px; background: #999; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both; }',
       '.typing span:nth-child(1) { animation-delay: -0.32s; }',
       '.typing span:nth-child(2) { animation-delay: -0.16s; }',
-      '.branding { padding: 10px 16px 12px; background: white; border-top: 1px solid #eee; text-align: center; display: none; }',
+      '.branding { padding: 10px 16px 12px; background: white; border-top: 1px solid #eee; border-bottom: 1px solid #eee; text-align: center; display: none; }',
       '.branding[data-visible="true"] { display: block; }',
-      '.widget-root[data-theme="dark"] .branding { background: #0f172a; border-top-color: #1f2937; }',
+      '.widget-root[data-theme="dark"] .branding { background: #0f172a; border-top-color: #1f2937; border-bottom-color: #1f2937; }',
       '.branding-link { font-size: 0.85em; color: #6b7280; text-decoration: none; }',
+      '.branding-link:hover { text-decoration: underline; }',
       '.widget-root[data-theme="dark"] .branding-link { color: #cbd5e1; }',
       '.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; }',
       '@keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }',
@@ -670,7 +683,10 @@
 
     widgetState.elements.launcher.innerHTML = "";
     widgetState.elements.launcher.style.fontSize = "0";
-    widgetState.elements.launcher.style.backgroundImage = getCssBackgroundImage(widgetState.iconUrl || getDefaultLauncherIcon());
+    widgetState.elements.launcher.style.backgroundImage = getCssBackgroundImage(
+      widgetState.iconUrl || getDefaultLauncherIcon(),
+      widgetState.config.apiHost
+    );
   }
 
   function setWidgetPosition(widgetState, position) {
@@ -711,7 +727,7 @@
     syncLauncherState(widgetState);
 
     var headerIcon = widgetState.iconUrl || getDefaultLauncherIcon();
-    widgetState.elements.headerAvatar.style.backgroundImage = getCssBackgroundImage(headerIcon);
+    widgetState.elements.headerAvatar.style.backgroundImage = getCssBackgroundImage(headerIcon, widgetState.config.apiHost);
 
     var shouldUseCustomBranding = !!widgetState.showBranding;
     var brandingName = shouldUseCustomBranding
