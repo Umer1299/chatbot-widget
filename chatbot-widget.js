@@ -521,7 +521,8 @@ if (!Array.isArray(normalizedPrompts)) {
       '.scroll-bottom-btn[data-visible="true"] { display: inline-flex; }',
       '.widget-root[data-theme="dark"] .scroll-bottom-btn { background: rgba(17,24,39,0.92); color: #e5e7eb; border-color: #374151; }',
       '.user { align-items: flex-end; }',
-      '.bot { max-width: 78%; max-height: 180px; border-radius: 14px; align-items: flex-start; overflow-y: auto; }',
+      '.bot { max-width: 78%;  border-radius: 14px; align-items: flex-start; overflow-y: auto; }',
+      '.welcome-msg { max-width: 100%;  border-radius: 14px; align-items: flex-start; overflow-y: auto; }',
       '.bubble-msg { max-width: 78%; padding: 12px 14px; border-radius: 14px; font-size: 1em; line-height: 1.5; word-break: break-word; white-space: normal; }',
       '.bubble-msg p { margin: 4px 0; }',
       '.bubble-msg ul { padding-left: 18px; margin: 6px 0; }',
@@ -536,7 +537,7 @@ if (!Array.isArray(normalizedPrompts)) {
       '.starter-prompts:empty { display: none; }',
       '.widget-root[data-theme="dark"] .starter-prompts { background: #111827; }',
       '.starter-prompts[data-hidden="true"] { display: none; }',
-      '.prompt { width: fit-content; max-width: 85%; background: white; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 999px; font-size: 0.85em; cursor: pointer; color: inherit; text-align: left; }',
+      '.prompt { width: fit-content; max-width: 85%; background: white; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 999px; font-size: 0.75em; cursor: pointer; color: inherit; text-align: left; }',
       '.prompt:hover { background: #f9fafb; }',
       '.widget-root[data-theme="dark"] .prompt { background: #1f2937; border-color: #374151; color: #f9fafb; }',
       '.widget-root[data-theme="dark"] .prompt:hover { background: #273449; }',
@@ -838,7 +839,12 @@ if (!Array.isArray(normalizedPrompts)) {
     }
 
     var msg = document.createElement("div");
-    msg.className = "message " + normalized.role;
+
+   var isWelcome =
+   normalized.role === "bot" &&
+   widgetState.history.length === 0;
+
+  msg.className = "message " + normalized.role + (isWelcome ? " welcome-msg" : "");
 
     var bubble = document.createElement("div");
     bubble.className = "bubble-msg";
