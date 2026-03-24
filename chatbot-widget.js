@@ -334,6 +334,10 @@
     }
   }
 
+  function persistHistory(widgetState) {
+    saveStoredHistory(widgetState.config.botId, widgetState.history || []);
+  }
+
   function requestWithTimeout(url, options, timeoutMs) {
     var controller = window.AbortController ? new AbortController() : null;
     var requestOptions = options || {};
@@ -764,8 +768,16 @@
       return;
     }
 
-    widgetState.elements.input.value = normalizedText;
-    sendMessage(widgetState);
+    if (widgetState.elements.input) {
+      widgetState.elements.input.value = normalizedText;
+      widgetState.elements.input.focus();
+      if (typeof widgetState.elements.input.setSelectionRange === "function") {
+        var endPos = normalizedText.length;
+        widgetState.elements.input.setSelectionRange(endPos, endPos);
+      }
+    }
+
+    sendMessage(widgetState, normalizedText);
   }
 
   function renderPrompts(widgetState, list) {
@@ -792,6 +804,9 @@
       btn.className = "prompt";
       btn.type = "button";
       btn.textContent = list[i];
+      btn.addEventListener("mousedown", function (event) {
+        event.preventDefault();
+      });
       btn.addEventListener("click", function (event) {
         event.preventDefault();
         var text = event.currentTarget && event.currentTarget.textContent;
@@ -1049,16 +1064,18 @@
       event.preventDefault();
     }
 
-    sendMessage(widgetState);
+    var value = widgetState.elements.input ? widgetState.elements.input.value : "";
+    sendMessage(widgetState, value);
   }
 
-  function sendMessage(widgetState) {
+  function sendMessage(widgetState, textOverride) {
     if (widgetState.isLoading) {
       return;
     }
 
     var input = widgetState.elements.input;
-    var text = String(input.value || "").trim();
+    var sourceText = typeof textOverride === "string" ? textOverride : (input && input.value);
+    var text = String(sourceText || "").trim();
     if (!text) {
       return;
     }
@@ -1098,8 +1115,15 @@
     });
 
     widgetState.elements.clearBtn.addEventListener("click", function () {
+      if (widgetState.typingTimer) {
+        window.clearTimeout(widgetState.typingTimer);
+        widgetState.typingTimer = null;
+      }
+      setLoadingState(widgetState, false);
       resetConversation(widgetState);
-      widgetState.elements.input.value = "";
+      if (widgetState.elements.input) {
+        widgetState.elements.input.value = "";
+      }
       setWidgetOpen(widgetState, false);
     });
 
