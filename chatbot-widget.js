@@ -676,6 +676,7 @@
     var isOpen = widgetState.elements.widgetRoot.getAttribute("data-open") === "true";
 
     if (isOpen) {
+      widgetState.elements.launcher.style.background = widgetState.primaryColor || "#2563eb";
       widgetState.elements.launcher.style.backgroundImage = "none";
       widgetState.elements.launcher.innerHTML = "<svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\"><path d=\"M6 9L12 15L18 9\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>";
       widgetState.elements.launcher.style.fontSize = "0";
@@ -683,8 +684,9 @@
     }
 
     var launcherIcon = normalizeIconUrl(widgetState.iconUrl || getDefaultLauncherIcon(), widgetState.config.apiHost);
+    widgetState.elements.launcher.style.background = "transparent";
     widgetState.elements.launcher.innerHTML = launcherIcon
-      ? '<img src="' + launcherIcon.replace(/"/g, "%22") + '" alt="" aria-hidden="true" style="width:100%;height:100%;object-fit:cover;border-radius:999px;display:block;transform:scale(1.12);" />'
+      ? '<img src="' + launcherIcon.replace(/"/g, "%22") + '" alt="" aria-hidden="true" style="width:100%;height:100%;object-fit:fill;border-radius:999px;display:block;" />'
       : "";
     widgetState.elements.launcher.style.fontSize = "0";
     widgetState.elements.launcher.style.backgroundImage = "none";
