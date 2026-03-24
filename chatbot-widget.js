@@ -158,12 +158,26 @@
     );
   }
 
-  function hasStoredMessages(history) {
-    return !!(history && history.length);
+  function hasUserMessages(history) {
+    for (var i = 0; i < history.length; i += 1) {
+      if (history[i] && history[i].role === "user") {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function normalizeIconUrl(url) {
+    var raw = String(url || "").trim();
+    if (!raw) return "";
+    if (raw.indexOf("data:") === 0) return raw;
+    return encodeURI(raw);
   }
 
   function getCssBackgroundImage(url) {
-    return 'url("' + String(url || "").replace(/"/g, "%22") + '")';
+    var normalized = normalizeIconUrl(url);
+    return normalized ? ('url("' + normalized.replace(/"/g, "%22") + '")') : "none";
   }
 
   function getApiUrl(apiHost, path) {
@@ -537,7 +551,11 @@
       config: config,
       sessionId: getOrCreateSessionId(config.botId),
       history: loadStoredHistory(config.botId),
-      uiState: loadStoredUiState(config.botId),
+      uiState: (function(){
+        var ui = loadStoredUiState(config.botId);
+        ui.open = false;
+        return ui;
+      })(),
       elements: {
         widgetRoot: root.querySelector(".widget-root"),
         panel: root.querySelector(".panel"),
@@ -605,7 +623,7 @@
   }
 
   function ensureConversationStartedState(widgetState) {
-    widgetState.uiState.hasStartedConversation = hasStoredMessages(widgetState.history);
+    widgetState.uiState.hasStartedConversation = hasUserMessages(widgetState.history);
     saveStoredUiState(widgetState.config.botId, widgetState.uiState);
   }
 
@@ -618,12 +636,12 @@
 
     if (isOpen) {
       widgetState.elements.launcher.style.backgroundImage = "none";
-      widgetState.elements.launcher.textContent = "↓";
-      widgetState.elements.launcher.style.fontSize = "28px";
+      widgetState.elements.launcher.innerHTML = "<svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\" aria-hidden=\"true\"><path d=\"M6 9L12 15L18 9\" stroke=\"white\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>";
+      widgetState.elements.launcher.style.fontSize = "0";
       return;
     }
 
-    widgetState.elements.launcher.textContent = "";
+    widgetState.elements.launcher.innerHTML = "";
     widgetState.elements.launcher.style.fontSize = "0";
     widgetState.elements.launcher.style.backgroundImage = getCssBackgroundImage(widgetState.iconUrl || getDefaultLauncherIcon());
   }
@@ -727,8 +745,10 @@
 
     if (!message.skipPersist) {
       widgetState.history.push({ role: normalized.role, text: normalized.text });
-      widgetState.uiState.hasStartedConversation = true;
-      saveStoredUiState(widgetState.config.botId, widgetState.uiState);
+      if (normalized.role === "user") {
+        widgetState.uiState.hasStartedConversation = true;
+        saveStoredUiState(widgetState.config.botId, widgetState.uiState);
+      }
       persistHistory(widgetState);
     }
 
@@ -839,8 +859,8 @@
 
     if (widgetState.autoOpen) {
       setWidgetOpen(widgetState, true);
-    } else if (widgetState.uiState.open) {
-      setWidgetOpen(widgetState, true, false);
+    } else {
+      setWidgetOpen(widgetState, false, false);
     }
   }
 
