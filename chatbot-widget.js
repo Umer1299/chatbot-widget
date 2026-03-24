@@ -391,6 +391,16 @@
     var fallbackThemeConfig = widgetState.config.themeConfig || {};
     var position = remoteConfig.position || widgetState.config.chatPosition || fallbackThemeConfig.position || "right";
     var normalizedPrompts = remoteConfig.starterPrompts;
+
+if (typeof normalizedPrompts === "string") {
+  normalizedPrompts = parseJson(normalizedPrompts, normalizedPrompts);
+}
+
+if (!Array.isArray(normalizedPrompts)) {
+  normalizedPrompts = Array.isArray(fallbackThemeConfig.starterPrompts)
+    ? fallbackThemeConfig.starterPrompts
+    : [];
+}
     var resolvedIconUrl = remoteConfig.iconUrl ||
       remoteConfig.iconURL ||
       remoteConfig.icon ||
@@ -412,15 +422,6 @@
       fallbackThemeConfig.brandingUrl ||
       fallbackThemeConfig.brandUrl ||
       "https://chatflowai.io";
-
-    if (typeof normalizedPrompts === "string") {
-      normalizedPrompts = parseJson(normalizedPrompts, normalizedPrompts);
-    }
-
-    if (!Array.isArray(normalizedPrompts)) {
-      normalizedPrompts = Array.isArray(fallbackThemeConfig.starterPrompts) ? fallbackThemeConfig.starterPrompts : [];
-    }
-
     return {
       name: remoteConfig.name || fallbackThemeConfig.title || "Chat Assistant",
       primaryColor: remoteConfig.primaryColor || fallbackThemeConfig.primaryColor || "#2563eb",
@@ -492,7 +493,7 @@
       '}',
       '.widget-root[data-open="true"] .panel { display: flex; flex-direction: column; }',
       '.widget-root[data-theme="dark"] .panel { background: #111827; border-color: rgba(55, 65, 81, 0.9); }',
-      '.chat-container { flex: 1; display: flex; flex-direction: column; height: 100%; width: 100%; background: #f5f5f5; pointer-events: auto; min-height: 0; }',
+      '.chat-container { flex: 1; display: flex; flex-direction: column; height: 100%; width: 100%; background: #f5f5f5; pointer-events: auto; min-height: 0; overflow: hidden; }',
       '.widget-root[data-theme="dark"] .chat-container { background: #111827; }',
       '.header { padding: 16px; font-weight: 600; color: white; background: var(--chatbot-primary, #2563eb); display: flex; align-items: center; justify-content: space-between; gap: 12px; }',
       '.header-main { display: flex; align-items: center; gap: 10px; min-width: 0; }',
@@ -500,22 +501,20 @@
       '.header-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }',
       '.header-actions { display: flex; align-items: center; gap: 8px; }',
       '.header-btn { background: transparent; border: none; color: inherit; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; }',
-      '.messages { flex: 1; min-height: 0; overflow-y: auto; padding: 0; background: #f5f5f5; scrollbar-width: thin; scrollbar-color: var(--chatbot-primary, #2563eb) transparent; }',
-      '.messages-wrap { position: relative; flex: 1; min-height: 0; }',
+      '.messages { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 16px 12px; background: #f5f5f5; scrollbar-width: thin; scrollbar-color: var(--chatbot-primary, #2563eb) transparent; }',
+      '.messages-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }',
       '.messages::-webkit-scrollbar { width: 6px; }',
       '.messages::-webkit-scrollbar-thumb { background: var(--chatbot-primary, #2563eb); border-radius: 10px; }',
       '.widget-root[data-theme="dark"] .messages { background: #111827; }',
       '.messages .message:first-child { margin-top: 8px; }',
-      '.message { margin-bottom: 12px; display: flex; flex-direction: column; max-width: 100%; padding: 0 16px; }',
+      '.message { margin-bottom: 8px; display: flex; flex-direction: column; max-width: 100%; }',
       '.scroll-bottom-btn { position: absolute; right: 14px; bottom: 14px; width: 30px; height: 30px; border-radius: 999px; border: 1px solid #d1d5db; background: rgba(255,255,255,0.95); color: #374151; display: none; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(15,23,42,0.2); z-index: 2; }',
       '.scroll-bottom-btn[data-visible="true"] { display: inline-flex; }',
       '.widget-root[data-theme="dark"] .scroll-bottom-btn { background: rgba(17,24,39,0.92); color: #e5e7eb; border-color: #374151; }',
       '.user { align-items: flex-end; }',
-      '.bot { align-items: flex-start; }',
-      '.bubble-msg { max-width: 75%; padding: 12px 14px; border-radius: 16px; font-size: 1em; line-height: 1.5; word-break: break-word; white-space: normal; }',
-      '.message.welcome { padding: 0 12px; margin-bottom: 10px; }',
-      '.bubble-msg.welcome-bubble { max-width: 100%; width: 100%; background: #e5e7eb; color: #111827; border-radius: 14px; border-bottom-left-radius: 14px; padding: 12px 16px; }',
-      '.widget-root[data-theme="dark"] .bubble-msg.welcome-bubble { background: #374151; color: #f9fafb; }',
+      '.bot { max-width: 78%;  border-radius: 14px; align-items: flex-start; }',
+      '.welcome-msg { padding: 8px 8px; width: 90%; max-width: 90% !important;   border-radius: 14px; align-items: flex-start; overflow-y: auto; margin-left: 0px; margin-right: 0px; }',
+      '.bubble-msg { max-width: 78%; padding: 12px 14px; border-radius: 14px; font-size: 1em; line-height: 1.5; word-break: break-word; white-space: normal; }',
       '.bubble-msg p { margin: 4px 0; }',
       '.bubble-msg ul { padding-left: 18px; margin: 6px 0; }',
       '.bubble-msg li { margin: 3px 0; }',
@@ -523,17 +522,17 @@
       '.bubble-msg pre { background: #111; color: #fff; padding: 10px; border-radius: 8px; overflow: auto; margin-top: 6px; }',
       '.bubble-msg code { background: #e5e7eb; padding: 2px 4px; border-radius: 4px; }',
       '.widget-root[data-theme="dark"] .bubble-msg code { background: #1f2937; color: #f9fafb; }',
-      '.starter-prompts { padding: 0 16px 12px; display: flex; flex-direction: column; gap: 8px; background: #f5f5f5; max-height: 150px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--chatbot-primary, #2563eb) transparent; }',
+      '.starter-prompts { padding: 8px 16px; display: flex; flex-wrap: wrap; flex-shrink: 0; gap: 8px; background: #f5f5f5; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--chatbot-primary, #2563eb) transparent;max-height:160px }',
       '.starter-prompts::-webkit-scrollbar { width: 6px; }',
       '.starter-prompts::-webkit-scrollbar-thumb { background: var(--chatbot-primary, #2563eb); border-radius: 10px; }',
       '.starter-prompts:empty { display: none; }',
       '.widget-root[data-theme="dark"] .starter-prompts { background: #111827; }',
       '.starter-prompts[data-hidden="true"] { display: none; }',
-      '.prompt { width: fit-content; max-width: 100%; background: white; border: 1px solid #e5e7eb; padding: 10px 14px; border-radius: 999px; font-size: 0.93em; cursor: pointer; color: inherit; text-align: left; }',
+      '.prompt { display: inline-flex; white-space: normal; align-items: center;white-space: nowrap;width: fit-content; max-width: 85%; background: white; border: 1px solid #e5e7eb; padding: 8px 12px; border-radius: 999px; font-size: 0.75em; cursor: pointer; color: inherit; text-align: left; }',
       '.prompt:hover { background: #f9fafb; }',
       '.widget-root[data-theme="dark"] .prompt { background: #1f2937; border-color: #374151; color: #f9fafb; }',
       '.widget-root[data-theme="dark"] .prompt:hover { background: #273449; }',
-      '.input-area { padding: 12px; display: flex; background: white; border-top: 1px solid #eee; }',
+      '.input-area { flex-shrink: 0; padding: 12px; display: flex; background: white; border-top: 1px solid #eee; }',
       '.widget-root[data-theme="dark"] .input-area { background: #0f172a; border-top-color: #1f2937; }',
       '.chat-input { flex: 1; padding: 12px 14px; border-radius: 999px; border: 1px solid #ddd; outline: none; font-size: 1em; font-family: inherit; background: white; color: #111827; }',
       '.chat-input:disabled { background: #f9fafb; cursor: not-allowed; }',
@@ -699,7 +698,7 @@
     var launcherIcon = normalizeIconUrl(widgetState.iconUrl || getDefaultLauncherIcon(), widgetState.config.apiHost);
     widgetState.elements.launcher.style.background = "transparent";
     widgetState.elements.launcher.innerHTML = launcherIcon
-      ? '<img src="' + launcherIcon.replace(/"/g, "%22") + '" alt="" aria-hidden="true" style="width:100%;height:100%;object-fit:cover;border-radius:999px;display:block;transform:scale(1.35);" />'
+      ? '<img src="' + launcherIcon.replace(/"/g, "%22") + '" alt="" aria-hidden="true" style="width:70%;height:70%;object-fit:contain;border-radius:999px;display:block;margin:auto;" />'
       : "";
     widgetState.elements.launcher.style.fontSize = "0";
     widgetState.elements.launcher.style.backgroundImage = "none";
@@ -802,7 +801,12 @@
   }
 
   function updateMessageScrollMode(widgetState) {
-    widgetState.elements.messages.style.overflowY = "auto";
+    var onlyWelcomeMessage = widgetState.history.length === 1 &&
+      widgetState.history[0] &&
+      widgetState.history[0].role === "bot" &&
+      widgetState.history[0].text === widgetState.welcomeMessage;
+
+    widgetState.elements.messages.style.overflowY = onlyWelcomeMessage ? "hidden" : "auto";
   }
 
   function persistHistory(widgetState) {
@@ -826,14 +830,17 @@
     }
 
     var msg = document.createElement("div");
-    msg.className = "message " + normalized.role;
+
+   var isWelcome =
+   normalized.role === "bot" &&
+   normalized.text === widgetState.welcomeMessage;
+
+msg.className = "message " + normalized.role + (isWelcome ? " welcome-msg" : "");
+
+  msg.className = "message " + normalized.role + (isWelcome ? " welcome-msg" : "");
 
     var bubble = document.createElement("div");
     bubble.className = "bubble-msg";
-
-    var isWelcomeBubble = normalized.role === "bot" &&
-      normalized.text === widgetState.welcomeMessage &&
-      !hasUserMessages(widgetState.history);
 
     if (normalized.role === "user") {
       bubble.style.background = widgetState.primaryColor;
@@ -845,11 +852,6 @@
       bubble.style.color = widgetState.theme === "dark" ? "#f9fafb" : "#111";
       bubble.style.borderBottomLeftRadius = "6px";
       bubble.innerHTML = renderMarkdown(normalized.text);
-
-      if (isWelcomeBubble) {
-        msg.classList.add("welcome");
-        bubble.classList.add("welcome-bubble");
-      }
     }
 
     msg.appendChild(bubble);
