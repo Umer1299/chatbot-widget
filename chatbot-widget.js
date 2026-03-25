@@ -903,6 +903,9 @@
     saveStoredUiState(widgetState.config.botId, widgetState.uiState);
     persistHistory(widgetState);
     widgetState.elements.messages.innerHTML = "";
+    if (widgetState.welcomeMessage) {
+      appendMessage(widgetState, { role: "bot", text: widgetState.welcomeMessage, skipPersist: true });
+    }
     renderPrompts(widgetState, widgetState.starterPrompts);
     updateMessageScrollMode(widgetState);
     updateScrollBottomButton(widgetState);
