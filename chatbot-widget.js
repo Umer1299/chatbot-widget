@@ -218,7 +218,7 @@
   }
 
   function renderMarkdown(text) {
-    if (window.marked && typeof window.marked.parse === "function") {
+        if (window.marked && typeof window.marked.parse === "function") {
       return window.marked.parse(text);
     }
 
@@ -438,7 +438,7 @@
       fallbackThemeConfig.brandingName ||
       fallbackThemeConfig.brandingText ||
       fallbackThemeConfig.brandName ||
-      "Chatflow AI";
+            "Chatflow AI";
     var resolvedBrandingUrl = remoteConfig.brandingUrl ||
       remoteConfig.brandUrl ||
       fallbackThemeConfig.brandingUrl ||
@@ -658,7 +658,7 @@
   }
 
   function syncLauncherState(widgetState) {
-    var isOpen = widgetState.elements.widgetRoot.getAttribute("data-open") === "true";
+        var isOpen = widgetState.elements.widgetRoot.getAttribute("data-open") === "true";
     if (isOpen) {
       widgetState.elements.launcher.style.background = widgetState.primaryColor || "#2563eb";
       widgetState.elements.launcher.style.backgroundImage = "none";
@@ -878,7 +878,7 @@
       } else {
         element.innerHTML = renderMarkdown(text);
         widgetState.typingTimer = null;
-      }
+              }
     }
 
     type();
