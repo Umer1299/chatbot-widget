@@ -511,12 +511,12 @@
       '.header-btn { background: transparent; border: none; color: inherit; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; }',
       '.messages { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 16px 12px; background: #f5f5f5; scrollbar-width: thin; scrollbar-color: var(--chatbot-primary, #2563eb) transparent; }',
       '.messages.only-initial .bot {max-width: 78%;}',
-      '.messages.only-initial .bubble-msg {max-width: 78% ; width: 100%; max-height: 120px; overflow-y: auto;margin-top: 8px}',
+      '.messages.only-initial .bubble-msg {max-width: 78%; width: 100%; margin-top: 16px}',
       '.messages-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }',
       '.messages::-webkit-scrollbar { width: 6px; }',
       '.messages::-webkit-scrollbar-thumb { background: var(--chatbot-primary, #2563eb); border-radius: 10px; }',
       '.widget-root[data-theme="dark"] .messages { background: #111827; }',
-      '.messages .message:first-child { margin-top: 8px; }',
+      '.messages .message:first-child { margin-top: 16px; }',
       '.message { margin-bottom: 8px; display: flex; flex-direction: column; max-width: 100%; }',
       '.scroll-bottom-btn { position: absolute; right: 14px; bottom: 14px; width: 30px; height: 30px; border-radius: 999px; border: 1px solid #d1d5db; background: rgba(255,255,255,0.95); color: #374151; display: none; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 12px rgba(15,23,42,0.2); z-index: 2; }',
       '.scroll-bottom-btn[data-visible="true"] { display: inline-flex; }',
@@ -944,9 +944,6 @@
     persistHistory(widgetState);
     widgetState.elements.messages.innerHTML = "";
     renderPrompts(widgetState, widgetState.starterPrompts);
-    if (widgetState.welcomeMessage) {
-      appendMessage(widgetState, { role: "bot", text: widgetState.welcomeMessage });
-    }
     updateMessageScrollMode(widgetState);
     updateScrollBottomButton(widgetState);
   }
@@ -1123,8 +1120,9 @@
       resetConversation(widgetState);
       if (widgetState.elements.input) {
         widgetState.elements.input.value = "";
+        widgetState.elements.input.focus();
       }
-      setWidgetOpen(widgetState, false);
+      setWidgetOpen(widgetState, true);
     });
 
     if (widgetState.elements.sendBtn) {
