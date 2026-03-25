@@ -422,6 +422,7 @@
         ? fallbackThemeConfig.starterPrompts
         : [];
     }
+
     var resolvedIconUrl = remoteConfig.iconUrl ||
       remoteConfig.iconURL ||
       remoteConfig.icon ||
@@ -468,7 +469,7 @@
       '.widget-root { position: fixed; bottom: calc(24px + env(safe-area-inset-bottom)); right: 20px; z-index: ' + MAX_Z_INDEX + '; display: flex; flex-direction: column; align-items: flex-end; gap: 14px; font-family: var(--chatbot-font-family, Inter, Arial, sans-serif); font-size: var(--chatbot-font-size, 14px); color: #111827; pointer-events: auto; }',
       '.widget-root[data-position="left"] { left: 20px; right: auto; align-items: flex-start; }',
       '.widget-root[data-theme="dark"] { color: #f9fafb; }',
-      '.launcher { width: 60px; height: 60px; border: none; border-radius: 999px; overflow: hidden; cursor: pointer; color: #fff; background-color: var(--chatbot-primary, #2563eb); background-repeat: no-repeat; background-position: center; background-size: cover; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18); font-size: 24px; display: inline-flex; align-items: center; justify-content: center; pointer-events: auto; }',
+      '.launcher { padding:0; overflow: hidden; width: 60px; height: 60px; border: none; border-radius: 999px; overflow: hidden; cursor: pointer; color: #fff; background-color: var(--chatbot-primary, #2563eb); background-repeat: no-repeat; background-position: center; background-size: cover; box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18); font-size: 24px; display: inline-flex; align-items: center; justify-content: center; pointer-events: auto; }',
       '.panel { width: min(400px, calc(100vw - 32px)); height: min(680px, calc(100vh - 116px - env(safe-area-inset-bottom))); max-height: calc(100vh - 116px - env(safe-area-inset-bottom)); border-radius: 24px; overflow: hidden; background: #f5f5f5; box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16); border: 1px solid rgba(229, 231, 235, 0.9); display: none; pointer-events: auto; }',
       '.widget-root[data-open="true"] .panel { display: flex; flex-direction: column; }',
       '.widget-root[data-theme="dark"] .panel { background: #111827; border-color: rgba(55, 65, 81, 0.9); }',
@@ -481,8 +482,8 @@
       '.header-actions { display: flex; align-items: center; gap: 8px; }',
       '.header-btn { background: transparent; border: none; color: inherit; cursor: pointer; font-size: 18px; line-height: 1; padding: 0; }',
       '.messages { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 16px 12px; background: #f5f5f5; scrollbar-width: thin; scrollbar-color: var(--chatbot-primary, #2563eb) transparent; }',
-      '.messages.only-initial .bot {max-width: 78%;}',
-      '.messages.only-initial .bubble-msg {max-width: 78%; width: 100%; margin-top: 16px}',
+      '.messages.only-initial .bot { max-width: 78%; }',
+      '.messages.only-initial .bubble-msg { max-width: 78%; width: 100%; margin-top: 16px; }',
       '.messages-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }',
       '.messages::-webkit-scrollbar { width: 6px; }',
       '.messages::-webkit-scrollbar-thumb { background: var(--chatbot-primary, #2563eb); border-radius: 10px; }',
@@ -657,7 +658,6 @@
 
   function syncLauncherState(widgetState) {
     var isOpen = widgetState.elements.widgetRoot.getAttribute("data-open") === "true";
-
     if (isOpen) {
       widgetState.elements.launcher.style.background = widgetState.primaryColor || "#2563eb";
       widgetState.elements.launcher.style.backgroundImage = "none";
@@ -669,7 +669,7 @@
     var launcherIcon = normalizeIconUrl(widgetState.iconUrl || getDefaultLauncherIcon(), widgetState.config.apiHost);
     widgetState.elements.launcher.style.background = "transparent";
     widgetState.elements.launcher.innerHTML = launcherIcon
-      ? '<img src="' + launcherIcon.replace(/"/g, "%22") + '" alt="" aria-hidden="true" style="width:60px;height:60px;object-fit:cover;border-radius:999px;display:block;" />'
+      ? '<img src="' + launcherIcon.replace(/"/g, "%22") + '" alt="" aria-hidden="true" style="width:100%;height:100%;object-fit:cover;border-radius:999px;display:block;margin:auto;" />'
       : "";
     widgetState.elements.launcher.style.fontSize = "0";
     widgetState.elements.launcher.style.backgroundImage = "none";
@@ -698,6 +698,30 @@
         updateScrollBottomButton(widgetState);
       }, 0);
     }
+  }
+
+  function updateBranding(widgetState) {
+    widgetState.host.style.setProperty("--chatbot-primary", widgetState.primaryColor || "#2563eb");
+    widgetState.host.style.setProperty("--chatbot-font-family", widgetState.fontFamily || "Inter, Arial, sans-serif");
+    widgetState.host.style.setProperty("--chatbot-font-size", widgetState.fontSize || "14px");
+
+    widgetState.elements.headerTitle.textContent = widgetState.title || "Chat Assistant";
+    widgetState.elements.sendBtn.style.background = widgetState.primaryColor;
+    widgetState.elements.launcher.style.background = widgetState.primaryColor;
+    widgetState.elements.widgetRoot.setAttribute("data-theme", widgetState.theme === "dark" ? "dark" : "light");
+
+    setWidgetPosition(widgetState, widgetState.config.chatPosition);
+    syncLauncherState(widgetState);
+
+    var headerIcon = widgetState.iconUrl || getDefaultLauncherIcon();
+    widgetState.elements.headerAvatar.style.backgroundImage = getCssBackgroundImage(headerIcon, widgetState.config.apiHost);
+
+    var shouldShowBranding = !!widgetState.showBranding && !!widgetState.brandingText && !!widgetState.brandingUrl;
+    widgetState.elements.branding.setAttribute("data-visible", shouldShowBranding ? "true" : "false");
+    widgetState.elements.brandingLink.textContent = shouldShowBranding ? widgetState.brandingText : "";
+    widgetState.elements.brandingLink.href = shouldShowBranding ? widgetState.brandingUrl : "#";
+    widgetState.elements.brandingLink.style.pointerEvents = shouldShowBranding ? "auto" : "none";
+    widgetState.elements.input.placeholder = widgetState.placeholder || "Message...";
   }
 
   function submitPrompt(widgetState, text) {
@@ -774,13 +798,11 @@
 
   function updateMessageScrollMode(widgetState) {
     var isInitialState = shouldShowStarterPrompts(widgetState);
-
     if (isInitialState) {
       widgetState.elements.messages.classList.add("only-initial");
     } else {
       widgetState.elements.messages.classList.remove("only-initial");
     }
-
     widgetState.elements.messages.style.overflowY = "auto";
   }
 
@@ -863,7 +885,6 @@
 
   function restoreHistory(widgetState) {
     widgetState.elements.messages.innerHTML = "";
-
     for (var i = 0; i < widgetState.history.length; i += 1) {
       appendMessage(widgetState, {
         role: widgetState.history[i].role,
@@ -1180,7 +1201,7 @@
     } catch (error) {
       botState.initializing = false;
       state.started = false;
-      if (state.attempts < MAX_INIT_ATTPTS) {
+      if (state.attempts < MAX_INIT_ATTEMPTS) {
         state.attempts += 1;
         setTimeout(function () {
           attemptInit("retry-bootstrap-" + state.attempts);
