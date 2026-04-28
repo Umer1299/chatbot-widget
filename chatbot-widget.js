@@ -1183,6 +1183,147 @@
     });
   }
 
+  function persistBotMessage(widgetState, text) {
+    var normalizedText = String(text || "").trim();
+    if (!normalizedText) {
+      return;
+    }
+    var lastMessage = widgetState.history[widgetState.history.length - 1];
+    if (!lastMessage || lastMessage.role !== "bot" || lastMessage.text !== normalizedText) {
+      widgetState.history.push({ role: "bot", text: normalizedText });
+      persistHistory(widgetState);
+    }
+  }
+
+  function extractStreamChunkText(rawChunk) {
+    var normalized = String(rawChunk || "").trim();
+    if (!normalized || normalized === "[DONE]") {
+      return "";
+    }
+
+    var parsed = parseJson(normalized, null);
+    if (!parsed) {
+      return normalized;
+    }
+
+    if (typeof parsed === "string") {
+      return parsed;
+    }
+
+    if (typeof parsed.text === "string") return parsed.text;
+    if (typeof parsed.content === "string") return parsed.content;
+    if (parsed.delta && typeof parsed.delta.content === "string") return parsed.delta.content;
+    if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && typeof parsed.choices[0].delta.content === "string") {
+      return parsed.choices[0].delta.content;
+    }
+
+    return "";
+  }
+
+  function sendStreamChatRequest(widgetState, messageText, onChunk) {
+    var streamApiUrl = widgetState.config.streamApiUrl || STREAM_CHAT_URL;
+    var payload = {
+      model: widgetState.config.aiModel || "gpt-4o-mini",
+      sessionId: widgetState.sessionId || "Hello",
+      message: messageText,
+      botId: widgetState.config.botId
+    };
+    if (widgetState.config.userId) {
+      payload.userId = widgetState.config.userId;
+    }
+
+    var headers = {
+      "Content-Type": "application/json"
+    };
+    if (widgetState.config.chatbotToken) {
+      headers["x-chatbot-token"] = widgetState.config.chatbotToken;
+    }
+
+    return requestWithTimeout(streamApiUrl, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(payload)
+    }, REQUEST_TIMEOUT).then(function (response) {
+      if (!response.ok) {
+        throw new Error("Stream chat request failed");
+      }
+      if (!response.body || typeof response.body.getReader !== "function") {
+        throw new Error("Streaming is not supported by this browser");
+      }
+
+      var reader = response.body.getReader();
+      var decoder = new TextDecoder();
+      var buffered = "";
+      var streamText = "";
+
+      return new Promise(function (resolve, reject) {
+        function readNext() {
+          reader.read().then(function (result) {
+            if (result.done) {
+              var remainder = buffered.trim();
+              if (remainder) {
+                var finalPiece = extractStreamChunkText(remainder.replace(/^data:\s*/i, ""));
+                if (finalPiece) {
+                  streamText += finalPiece;
+                  if (typeof onChunk === "function") onChunk(streamText);
+                }
+              }
+              resolve(streamText);
+              return;
+            }
+
+            buffered += decoder.decode(result.value, { stream: true });
+            var lines = buffered.split(/\r?\n/);
+            buffered = lines.pop() || "";
+
+            for (var i = 0; i < lines.length; i += 1) {
+              var line = lines[i].trim();
+              if (!line) continue;
+              if (line.indexOf(":") !== -1 && line.indexOf("data:") !== 0) continue;
+
+              var payloadText = line.indexOf("data:") === 0 ? line.slice(5).trim() : line;
+              var piece = extractStreamChunkText(payloadText);
+              if (!piece) continue;
+
+              streamText += piece;
+              if (typeof onChunk === "function") onChunk(streamText);
+            }
+
+            readNext();
+          }).catch(reject);
+        }
+
+        readNext();
+      });
+    });
+  }
+
+  function saveChatToBubble(widgetState, userMessage, botMessage) {
+    var savePath = widgetState.config.saveChatPath || API_PATHS.saveChat;
+    var url = getApiUrl(widgetState.config.apiHost, savePath);
+    var payload = {
+      botId: widgetState.config.botId,
+      userId: widgetState.config.userId || "",
+      sessionId: widgetState.sessionId || "",
+      userMessage: String(userMessage || ""),
+      botMessage: String(botMessage || ""),
+      timestamp: new Date().toISOString()
+    };
+
+    return requestWithTimeout(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }, REQUEST_TIMEOUT).then(function (response) {
+      if (!response.ok) {
+        throw new Error("Save chat request failed");
+      }
+      return response;
+    });
+  }
+
   function sendChatRequest(widgetState, messageText, attempt) {
     var url = getApiUrl(widgetState.config.apiHost, API_PATHS.createChat);
     var payload = {
