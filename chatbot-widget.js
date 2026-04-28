@@ -6,11 +6,13 @@
   var INIT_RETRY_DELAY = 400;
   var FALLBACK_TIMEOUTS = [0, 250, 750, 1500, 3000, 5000, 8000];
   var MAX_Z_INDEX = 2147483647;
-  var REQUEST_TIMEOUT = 10000;
+  var REQUEST_TIMEOUT = 60000;
   var API_PATHS = {
     config: "/api/1.1/wf/get-chatbot?chatID=",
-    createChat: "/api/1.1/wf/create-chat"
+    createChat: "/api/1.1/wf/create-chat",
+    saveChat: "/api/1.1/wf/save-chat"
   };
+  var STREAM_CHAT_URL = "https://chatbot-backend-w1ju.onrender.com/api/chat?stream=true";
   var EXECUTING_SCRIPT = detectCurrentScriptTag();
 
   function getScriptSignature(script) {
@@ -403,7 +405,11 @@
       botId: scriptTag.getAttribute("data-bot-id"),
       apiHost: scriptTag.getAttribute("data-api-host") || DEFAULT_API_HOST,
       chatPosition: scriptTag.getAttribute("data-position") || "right",
-      userId: scriptTag.getAttribute("data-user-id") || "",
+      userId: "",
+      aiModel: "gpt-4o-mini",
+      chatbotToken: "",
+      streamApiUrl: STREAM_CHAT_URL,
+      saveChatPath: API_PATHS.saveChat,
       themeConfig: parseJson(scriptTag.getAttribute("data-theme-config"), {})
     };
   }
@@ -444,6 +450,31 @@
       fallbackThemeConfig.brandingUrl ||
       fallbackThemeConfig.brandUrl ||
       "https://chatflowai.io";
+    var resolvedUserId = remoteConfig.userId ||
+      remoteConfig.userid ||
+      remoteConfig.userID ||
+      widgetState.config.userId ||
+      "";
+    var resolvedAiModel = remoteConfig.aiModel ||
+      remoteConfig.model ||
+      remoteConfig.openaiModel ||
+      widgetState.config.aiModel ||
+      "gpt-4o-mini";
+    var resolvedChatbotToken = remoteConfig.chatbotToken ||
+      remoteConfig.chatBotToken ||
+      remoteConfig.token ||
+      widgetState.config.chatbotToken ||
+      "";
+    var resolvedStreamApiUrl = remoteConfig.streamApiUrl ||
+      remoteConfig.streamURL ||
+      remoteConfig.streamUrl ||
+      widgetState.config.streamApiUrl ||
+      STREAM_CHAT_URL;
+    var resolvedSaveChatPath = remoteConfig.saveChatPath ||
+      remoteConfig.savePath ||
+      widgetState.config.saveChatPath ||
+      API_PATHS.saveChat;
+
     return {
       name: remoteConfig.name || fallbackThemeConfig.title || "Chat Assistant",
       primaryColor: remoteConfig.primaryColor || fallbackThemeConfig.primaryColor || "#2563eb",
@@ -458,7 +489,12 @@
       theme: (remoteConfig.theme || fallbackThemeConfig.theme || "light").toLowerCase() === "dark" ? "dark" : "light",
       fontFamily: remoteConfig.fontFamily || fallbackThemeConfig.fontFamily || "Inter, Arial, sans-serif",
       fontSize: normalizeFontSize(remoteConfig.fontSize || fallbackThemeConfig.fontSize, "14px"),
-      position: position === "left" ? "left" : "right"
+      position: position === "left" ? "left" : "right",
+      userId: resolvedUserId,
+      aiModel: resolvedAiModel,
+      chatbotToken: resolvedChatbotToken,
+      streamApiUrl: resolvedStreamApiUrl,
+      saveChatPath: resolvedSaveChatPath
     };
   }
 
@@ -915,7 +951,8 @@
     return (data && data.response) || data || {};
   }
 
-  function applyRemoteConfig(widgetState, remoteConfig) {
+  function applyRemoteConfig(widgetState, remoteConfig, options) {
+    var applyOptions = options || {};
     var normalized = normalizeRemoteConfig(widgetState, remoteConfig);
 
     widgetState.title = normalized.name;
@@ -932,7 +969,12 @@
     widgetState.fontFamily = normalized.fontFamily;
     widgetState.fontSize = normalized.fontSize;
     widgetState.config.chatPosition = normalized.position;
-    widgetState.configLoaded = true;
+    widgetState.config.userId = normalized.userId;
+    widgetState.config.aiModel = normalized.aiModel;
+    widgetState.config.chatbotToken = normalized.chatbotToken;
+    widgetState.config.streamApiUrl = normalized.streamApiUrl;
+    widgetState.config.saveChatPath = normalized.saveChatPath;
+    widgetState.configLoaded = !!applyOptions.markAsLoaded;
 
     ensureConversationStartedState(widgetState);
     updateBranding(widgetState);
@@ -961,9 +1003,11 @@
         return response.json();
       })
       .then(function (data) {
-        applyRemoteConfig(widgetState, normalizeConfigResponse(data));
+        applyRemoteConfig(widgetState, normalizeConfigResponse(data), { markAsLoaded: true });
       }).catch(function () {
-        applyRemoteConfig(widgetState, {});
+        applyRemoteConfig(widgetState, {}, { markAsLoaded: true });
+      }).then(function () {
+        setLoadingState(widgetState, false);
       });
   }
 
@@ -986,6 +1030,147 @@
       persistHistory(widgetState);
     }
     typeWriter(widgetState, bubble, text);
+  }
+
+  function persistBotMessage(widgetState, text) {
+    var normalizedText = String(text || "").trim();
+    if (!normalizedText) {
+      return;
+    }
+    var lastMessage = widgetState.history[widgetState.history.length - 1];
+    if (!lastMessage || lastMessage.role !== "bot" || lastMessage.text !== normalizedText) {
+      widgetState.history.push({ role: "bot", text: normalizedText });
+      persistHistory(widgetState);
+    }
+  }
+
+  function extractStreamChunkText(rawChunk) {
+    var normalized = String(rawChunk || "").trim();
+    if (!normalized || normalized === "[DONE]") {
+      return "";
+    }
+
+    var parsed = parseJson(normalized, null);
+    if (!parsed) {
+      return normalized;
+    }
+
+    if (typeof parsed === "string") {
+      return parsed;
+    }
+
+    if (typeof parsed.text === "string") return parsed.text;
+    if (typeof parsed.content === "string") return parsed.content;
+    if (parsed.delta && typeof parsed.delta.content === "string") return parsed.delta.content;
+    if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && typeof parsed.choices[0].delta.content === "string") {
+      return parsed.choices[0].delta.content;
+    }
+
+    return "";
+  }
+
+  function sendStreamChatRequest(widgetState, messageText, onChunk) {
+    var streamApiUrl = widgetState.config.streamApiUrl || STREAM_CHAT_URL;
+    var payload = {
+      model: widgetState.config.aiModel || "gpt-4o-mini",
+      sessionId: widgetState.sessionId || "",
+      message: messageText,
+      botId: widgetState.config.botId
+    };
+    if (widgetState.config.userId) {
+      payload.userId = widgetState.config.userId;
+    }
+
+    var headers = {
+      "Content-Type": "application/json"
+    };
+    if (widgetState.config.chatbotToken) {
+      headers["x-chatbot-token"] = widgetState.config.chatbotToken;
+    }
+
+    return requestWithTimeout(streamApiUrl, {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(payload)
+    }, REQUEST_TIMEOUT).then(function (response) {
+      if (!response.ok) {
+        throw new Error("Stream chat request failed");
+      }
+      if (!response.body || typeof response.body.getReader !== "function") {
+        throw new Error("Streaming is not supported by this browser");
+      }
+
+      var reader = response.body.getReader();
+      var decoder = new TextDecoder();
+      var buffered = "";
+      var streamText = "";
+
+      return new Promise(function (resolve, reject) {
+        function readNext() {
+          reader.read().then(function (result) {
+            if (result.done) {
+              var remainder = buffered.trim();
+              if (remainder) {
+                var finalPiece = extractStreamChunkText(remainder.replace(/^data:\s*/i, ""));
+                if (finalPiece) {
+                  streamText += finalPiece;
+                  if (typeof onChunk === "function") onChunk(streamText);
+                }
+              }
+              resolve(streamText);
+              return;
+            }
+
+            buffered += decoder.decode(result.value, { stream: true });
+            var lines = buffered.split(/\r?\n/);
+            buffered = lines.pop() || "";
+
+            for (var i = 0; i < lines.length; i += 1) {
+              var line = lines[i].trim();
+              if (!line) continue;
+              if (line.indexOf(":") !== -1 && line.indexOf("data:") !== 0) continue;
+
+              var payloadText = line.indexOf("data:") === 0 ? line.slice(5).trim() : line;
+              var piece = extractStreamChunkText(payloadText);
+              if (!piece) continue;
+
+              streamText += piece;
+              if (typeof onChunk === "function") onChunk(streamText);
+            }
+
+            readNext();
+          }).catch(reject);
+        }
+
+        readNext();
+      });
+    });
+  }
+
+  function saveChatToBubble(widgetState, userMessage, botMessage) {
+    var savePath = widgetState.config.saveChatPath || API_PATHS.saveChat;
+    var url = getApiUrl(widgetState.config.apiHost, savePath);
+    var payload = {
+      botId: widgetState.config.botId,
+      userId: widgetState.config.userId || "",
+      sessionId: widgetState.sessionId || "",
+      userMessage: String(userMessage || ""),
+      botMessage: String(botMessage || ""),
+      timestamp: new Date().toISOString()
+    };
+
+    return requestWithTimeout(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }, REQUEST_TIMEOUT).then(function (response) {
+      if (!response.ok) {
+        throw new Error("Save chat request failed");
+      }
+      return response;
+    });
   }
 
   function sendChatRequest(widgetState, messageText, attempt) {
@@ -1032,6 +1217,9 @@
     if (widgetState.isLoading) {
       return;
     }
+    if (!widgetState.configLoaded) {
+      return;
+    }
 
     var input = widgetState.elements.input;
     var sourceText = typeof textOverride === "string" ? textOverride : (input && input.value);
@@ -1046,16 +1234,31 @@
     var botBubble = createBotLoadingBubble(widgetState);
     setLoadingState(widgetState, true);
 
-    sendChatRequest(widgetState, text, 0).then(function (data) {
-      var reply = data.text || (data.response && data.response.text) || "No response.";
-      updatePendingBotMessage(widgetState, botBubble, reply);
+    sendStreamChatRequest(widgetState, text, function (streamText) {
+      botBubble.textContent = streamText;
+      scrollMessagesToBottom(widgetState);
+    }).then(function (streamReply) {
+      var finalReply = String(streamReply || "").trim() || "No response.";
+      botBubble.innerHTML = renderMarkdown(finalReply);
+      persistBotMessage(widgetState, finalReply);
+
+      return saveChatToBubble(widgetState, text, finalReply).catch(function () {
+        return null;
+      });
+    }).then(function () {
       setLoadingState(widgetState, false);
       input.focus();
     }).catch(function () {
-      var errorText = "Server error. Please try again.";
-      updatePendingBotMessage(widgetState, botBubble, errorText);
-      setLoadingState(widgetState, false);
-      input.focus();
+      sendChatRequest(widgetState, text, 0).then(function (data) {
+        var reply = data.text || (data.response && data.response.text) || "No response.";
+        updatePendingBotMessage(widgetState, botBubble, reply);
+      }).catch(function () {
+        var errorText = "Server error. Please try again.";
+        updatePendingBotMessage(widgetState, botBubble, errorText);
+      }).then(function () {
+        setLoadingState(widgetState, false);
+        input.focus();
+      });
     });
   }
 
@@ -1116,7 +1319,8 @@
     bindWidgetEvents(widgetState);
     ensureConversationStartedState(widgetState);
     restoreHistory(widgetState);
-    applyRemoteConfig(widgetState, {});
+    applyRemoteConfig(widgetState, {}, { markAsLoaded: false });
+    setLoadingState(widgetState, true);
     loadRemoteConfig(widgetState);
   }
 
