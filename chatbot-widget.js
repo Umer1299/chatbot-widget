@@ -401,7 +401,7 @@
   }
 
   function getWidgetConfig(scriptTag) {
-    return {
+    var config = {
       botId: scriptTag.getAttribute("data-bot-id"),
       apiHost: scriptTag.getAttribute("data-api-host") || DEFAULT_API_HOST,
       chatPosition: scriptTag.getAttribute("data-position") || "right",
@@ -412,6 +412,9 @@
       saveChatPath: API_PATHS.saveChat,
       themeConfig: parseJson(scriptTag.getAttribute("data-theme-config"), {})
     };
+    // TODO: remove debug log before production release.
+    console.log("[ChatflowAI Widget] Initial config", config);
+    return config;
   }
 
   function normalizeRemoteConfig(widgetState, remoteConfig) {
@@ -985,6 +988,8 @@
     widgetState.config.streamApiUrl = normalized.streamApiUrl;
     widgetState.config.saveChatPath = normalized.saveChatPath;
     widgetState.configLoaded = !!applyOptions.markAsLoaded;
+    // TODO: remove debug log before production release.
+    console.log("[ChatflowAI Widget] Applied config", widgetState.config);
 
     ensureConversationStartedState(widgetState);
     updateBranding(widgetState);
@@ -1013,6 +1018,8 @@
         return response.json();
       })
       .then(function (data) {
+        // TODO: remove debug log before production release.
+        console.log("[ChatflowAI Widget] Remote config response", data);
         applyRemoteConfig(widgetState, normalizeConfigResponse(data), { markAsLoaded: true });
       }).catch(function () {
         applyRemoteConfig(widgetState, {}, { markAsLoaded: true });
@@ -1097,6 +1104,12 @@
     if (widgetState.config.chatbotToken) {
       headers["x-chatbot-token"] = widgetState.config.chatbotToken;
     }
+    // TODO: remove debug log before production release.
+    console.log("[ChatflowAI Widget] Sending stream request", {
+      streamApiUrl: streamApiUrl,
+      payload: payload,
+      hasToken: !!widgetState.config.chatbotToken
+    });
 
     return requestWithTimeout(streamApiUrl, {
       method: "POST",
