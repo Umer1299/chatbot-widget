@@ -6,10 +6,11 @@
   var INIT_RETRY_DELAY = 400;
   var FALLBACK_TIMEOUTS = [0, 250, 750, 1500, 3000, 5000, 8000];
   var MAX_Z_INDEX = 2147483647;
-  var REQUEST_TIMEOUT = 10000;
+  var REQUEST_TIMEOUT = 60000;
   var API_PATHS = {
     config: "/api/1.1/wf/get-chatbot?chatID=",
-    createChat: "/api/1.1/wf/create-chat"
+    createChat: "/api/1.1/wf/create-chat",
+    saveChat: "/api/1.1/wf/save-chat"
   };
   var STREAM_CHAT_URL = "https://chatbot-backend-w1ju.onrender.com/api/chat?stream=true";
   var EXECUTING_SCRIPT = detectCurrentScriptTag();
@@ -408,6 +409,7 @@
       aiModel: scriptTag.getAttribute("data-ai-model") || "gpt-4o-mini",
       chatbotToken: scriptTag.getAttribute("data-chatbot-token") || "",
       streamApiUrl: scriptTag.getAttribute("data-stream-api-url") || STREAM_CHAT_URL,
+      saveChatPath: scriptTag.getAttribute("data-save-chat-path") || API_PATHS.saveChat,
       themeConfig: parseJson(scriptTag.getAttribute("data-theme-config"), {})
     };
   }
@@ -1035,8 +1037,11 @@
       model: widgetState.config.aiModel || "gpt-4o-mini",
       sessionId: widgetState.sessionId || "Hello",
       message: messageText,
-      chatId: widgetState.config.userId || "user1"
+      botId: widgetState.config.botId
     };
+    if (widgetState.config.userId) {
+      payload.userId = widgetState.config.userId;
+    }
 
     var headers = {
       "Content-Type": "application/json"
@@ -1101,6 +1106,32 @@
 
         readNext();
       });
+    });
+  }
+
+  function saveChatToBubble(widgetState, userMessage, botMessage) {
+    var savePath = widgetState.config.saveChatPath || API_PATHS.saveChat;
+    var url = getApiUrl(widgetState.config.apiHost, savePath);
+    var payload = {
+      botId: widgetState.config.botId,
+      userId: widgetState.config.userId || "",
+      sessionId: widgetState.sessionId || "",
+      userMessage: String(userMessage || ""),
+      botMessage: String(botMessage || ""),
+      timestamp: new Date().toISOString()
+    };
+
+    return requestWithTimeout(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    }, REQUEST_TIMEOUT).then(function (response) {
+      if (!response.ok) {
+        throw new Error("Save chat request failed");
+      }
+      return response;
     });
   }
 
@@ -1170,7 +1201,7 @@
       botBubble.innerHTML = renderMarkdown(finalReply);
       persistBotMessage(widgetState, finalReply);
 
-      return sendChatRequest(widgetState, text, 0).catch(function () {
+      return saveChatToBubble(widgetState, text, finalReply).catch(function () {
         return null;
       });
     }).then(function () {
