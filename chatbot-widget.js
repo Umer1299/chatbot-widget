@@ -1218,6 +1218,13 @@
       return;
     }
     if (!widgetState.configLoaded) {
+      setLoadingState(widgetState, true);
+      loadRemoteConfig(widgetState).then(function () {
+        setLoadingState(widgetState, false);
+        sendMessage(widgetState, textOverride);
+      }).catch(function () {
+        setLoadingState(widgetState, false);
+      });
       return;
     }
 
@@ -1230,7 +1237,9 @@
 
     setWidgetOpen(widgetState, true);
     appendMessage(widgetState, { role: "user", text: text });
-    input.value = "";
+    if (input && typeof input.value === "string") {
+      input.value = "";
+    }
     var botBubble = createBotLoadingBubble(widgetState);
     setLoadingState(widgetState, true);
 
@@ -1247,7 +1256,9 @@
       });
     }).then(function () {
       setLoadingState(widgetState, false);
-      input.focus();
+      if (input && typeof input.focus === "function") {
+        input.focus();
+      }
     }).catch(function () {
       sendChatRequest(widgetState, text, 0).then(function (data) {
         var reply = data.text || (data.response && data.response.text) || "No response.";
@@ -1257,7 +1268,9 @@
         updatePendingBotMessage(widgetState, botBubble, errorText);
       }).then(function () {
         setLoadingState(widgetState, false);
-        input.focus();
+        if (input && typeof input.focus === "function") {
+          input.focus();
+        }
       });
     });
   }
