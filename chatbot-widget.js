@@ -1190,7 +1190,7 @@
     var payload = {
       botId: widgetState.config.botId,
       message: messageText,
-      sessionId: widgetState.sessionId
+      sessionId: widgetState.sessionId || ""
     };
 
     if (widgetState.config.userId) {
