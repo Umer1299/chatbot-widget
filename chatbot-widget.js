@@ -451,26 +451,36 @@
       fallbackThemeConfig.brandUrl ||
       "https://chatflowai.io";
     var resolvedUserId = remoteConfig.userId ||
+      remoteConfig.user_id ||
       remoteConfig.userid ||
       remoteConfig.userID ||
       widgetState.config.userId ||
       "";
     var resolvedAiModel = remoteConfig.aiModel ||
+      remoteConfig.ai_model ||
       remoteConfig.model ||
       remoteConfig.openaiModel ||
+      remoteConfig.openAIModel ||
       widgetState.config.aiModel ||
       "gpt-4o-mini";
     var resolvedChatbotToken = remoteConfig.chatbotToken ||
+      remoteConfig.chatbot_token ||
       remoteConfig.chatBotToken ||
+      remoteConfig.widgetToken ||
+      remoteConfig.widget_token ||
       remoteConfig.token ||
       widgetState.config.chatbotToken ||
       "";
     var resolvedStreamApiUrl = remoteConfig.streamApiUrl ||
+      remoteConfig.stream_api_url ||
       remoteConfig.streamURL ||
       remoteConfig.streamUrl ||
+      remoteConfig.chatApiUrl ||
+      remoteConfig.chat_api_url ||
       widgetState.config.streamApiUrl ||
       STREAM_CHAT_URL;
     var resolvedSaveChatPath = remoteConfig.saveChatPath ||
+      remoteConfig.save_chat_path ||
       remoteConfig.savePath ||
       widgetState.config.saveChatPath ||
       API_PATHS.saveChat;
