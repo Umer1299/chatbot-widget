@@ -1277,27 +1277,48 @@
       input.value = "";
     }
     var botBubble = createBotLoadingBubble(widgetState);
+    var streamRenderFrame = null;
+    var queuedStreamText = "";
+
+    function flushStreamText() {
+      streamRenderFrame = null;
+      botBubble.textContent = queuedStreamText;
+      scrollMessagesToBottom(widgetState);
+    }
+
     setLoadingState(widgetState, true);
 
     sendStreamChatRequest(widgetState, text, function (streamText) {
-      botBubble.textContent = streamText;
-      scrollMessagesToBottom(widgetState);
+      queuedStreamText = streamText;
+      if (streamRenderFrame !== null) {
+        return;
+      }
+
+      if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+        streamRenderFrame = window.requestAnimationFrame(flushStreamText);
+        return;
+      }
+
+      flushStreamText();
     }).then(function (streamReply) {
+      if (streamRenderFrame !== null && typeof window !== "undefined" && typeof window.cancelAnimationFrame === "function") {
+        window.cancelAnimationFrame(streamRenderFrame);
+        streamRenderFrame = null;
+      }
       var finalReply = String(streamReply || "").trim() || "No response.";
       botBubble.innerHTML = renderMarkdown(finalReply);
       persistBotMessage(widgetState, finalReply);
+      setLoadingState(widgetState, false);
+      if (input && typeof input.focus === "function") {
+        input.focus();
+      }
 
-      return saveChatToBubble(widgetState, text, finalReply).catch(function (error) {
+      saveChatToBubble(widgetState, text, finalReply).catch(function (error) {
         if (window.console && typeof window.console.warn === "function") {
           window.console.warn("Unable to save chat to Bubble after stream completion.", error);
         }
         return null;
       });
-    }).then(function () {
-      setLoadingState(widgetState, false);
-      if (input && typeof input.focus === "function") {
-        input.focus();
-      }
     }).catch(function () {
       sendChatRequest(widgetState, text, 0).then(function (data) {
         var reply = data.text || (data.response && data.response.text) || "No response.";
