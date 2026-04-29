@@ -1071,8 +1071,14 @@
       return parsed;
     }
 
+    if (typeof parsed.token === "string") return parsed.token;
     if (typeof parsed.text === "string") return parsed.text;
+    if (typeof parsed.reply === "string") return parsed.reply;
+    if (typeof parsed.answer === "string") return parsed.answer;
+    if (typeof parsed.message === "string") return parsed.message;
+    if (typeof parsed.response === "string") return parsed.response;
     if (typeof parsed.content === "string") return parsed.content;
+    if (typeof parsed.delta === "string") return parsed.delta;
     if (parsed.delta && typeof parsed.delta.content === "string") return parsed.delta.content;
     if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && typeof parsed.choices[0].delta.content === "string") {
       return parsed.choices[0].delta.content;
