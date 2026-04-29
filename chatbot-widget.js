@@ -1176,12 +1176,16 @@
       botMessage: String(botMessage || ""),
       timestamp: new Date().toISOString()
     };
+    var headers = {
+      "Content-Type": "application/json"
+    };
+    if (widgetState.config.chatbotToken) {
+      headers["x-chatbot-token"] = widgetState.config.chatbotToken;
+    }
 
     return requestWithTimeout(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: headers,
       body: JSON.stringify(payload)
     }, REQUEST_TIMEOUT).then(function (response) {
       if (!response.ok) {
@@ -1269,7 +1273,10 @@
       botBubble.innerHTML = renderMarkdown(finalReply);
       persistBotMessage(widgetState, finalReply);
 
-      return saveChatToBubble(widgetState, text, finalReply).catch(function () {
+      return saveChatToBubble(widgetState, text, finalReply).catch(function (error) {
+        if (window.console && typeof window.console.warn === "function") {
+          window.console.warn("Unable to save chat to Bubble after stream completion.", error);
+        }
         return null;
       });
     }).then(function () {
@@ -1281,6 +1288,9 @@
       sendChatRequest(widgetState, text, 0).then(function (data) {
         var reply = data.text || (data.response && data.response.text) || "No response.";
         updatePendingBotMessage(widgetState, botBubble, reply);
+        return saveChatToBubble(widgetState, text, reply).catch(function () {
+          return null;
+        });
       }).catch(function () {
         var errorText = "Server error. Please try again.";
         updatePendingBotMessage(widgetState, botBubble, errorText);
