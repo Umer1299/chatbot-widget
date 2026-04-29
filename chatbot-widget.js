@@ -1087,6 +1087,20 @@
     return "";
   }
 
+  function mergeStreamText(currentText, incomingPiece) {
+    var base = String(currentText || "");
+    var piece = String(incomingPiece || "");
+    if (!piece) {
+      return base;
+    }
+
+    if (piece.indexOf(base) === 0) {
+      return piece;
+    }
+
+    return base + piece;
+  }
+
   function sendStreamChatRequest(widgetState, messageText, onChunk) {
     var streamApiUrl = widgetState.config.streamApiUrl || STREAM_CHAT_URL;
     var payload = {
@@ -1131,7 +1145,7 @@
               if (remainder) {
                 var finalPiece = extractStreamChunkText(remainder.replace(/^data:\s*/i, ""));
                 if (finalPiece) {
-                  streamText += finalPiece;
+                  streamText = mergeStreamText(streamText, finalPiece);
                   if (typeof onChunk === "function") onChunk(streamText);
                 }
               }
@@ -1152,7 +1166,7 @@
               var piece = extractStreamChunkText(payloadText);
               if (!piece) continue;
 
-              streamText += piece;
+              streamText = mergeStreamText(streamText, piece);
               if (typeof onChunk === "function") onChunk(streamText);
             }
 
