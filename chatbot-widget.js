@@ -455,10 +455,12 @@
       remoteConfig.user_id ||
       remoteConfig.userid ||
       remoteConfig.userID ||
+      remoteConfig.user ||
       widgetState.config.userId ||
       "";
     var resolvedAiModel = remoteConfig.aiModel ||
       remoteConfig.ai_model ||
+      remoteConfig.aiModelName ||
       remoteConfig.model ||
       remoteConfig.openaiModel ||
       remoteConfig.openAIModel ||
@@ -467,8 +469,10 @@
     var resolvedChatbotToken = remoteConfig.chatbotToken ||
       remoteConfig.chatbot_token ||
       remoteConfig.chatBotToken ||
+      remoteConfig.chatbotTokenValue ||
       remoteConfig.widgetToken ||
       remoteConfig.widget_token ||
+      remoteConfig.apiToken ||
       remoteConfig.token ||
       widgetState.config.chatbotToken ||
       "";
@@ -476,12 +480,14 @@
       remoteConfig.stream_api_url ||
       remoteConfig.streamURL ||
       remoteConfig.streamUrl ||
+      remoteConfig.streamingApiUrl ||
       remoteConfig.chatApiUrl ||
       remoteConfig.chat_api_url ||
       widgetState.config.streamApiUrl ||
       STREAM_CHAT_URL;
     var resolvedSaveChatPath = remoteConfig.saveChatPath ||
       remoteConfig.save_chat_path ||
+      remoteConfig.saveChatEndpoint ||
       remoteConfig.savePath ||
       widgetState.config.saveChatPath ||
       API_PATHS.saveChat;
@@ -551,6 +557,7 @@
       '.bubble-msg pre { background: #111; color: #fff; padding: 10px; border-radius: 8px; overflow: auto; margin-top: 6px; }',
       '.bubble-msg code { background: #e5e7eb; padding: 2px 4px; border-radius: 4px; }',
       '.widget-root[data-theme="dark"] .bubble-msg code { background: #1f2937; color: #f9fafb; }',
+      '.bot-cta { margin-top: 8px; padding: 8px 12px; border-radius: 999px; border: none; cursor: pointer; font-size: 0.85em; background: var(--chatbot-primary, #2563eb); color: #fff; }',
       '.starter-prompts { padding: 8px 16px; display: flex; flex-wrap: wrap; flex-shrink: 0; gap: 8px; background: #f5f5f5; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--chatbot-primary, #2563eb) transparent; max-height:160px; }',
       '.starter-prompts::-webkit-scrollbar { width: 6px; }',
       '.starter-prompts::-webkit-scrollbar-thumb { background: var(--chatbot-primary, #2563eb); border-radius: 10px; }',
@@ -1056,35 +1063,48 @@
     }
   }
 
-  function extractStreamChunkText(rawChunk) {
+  function parseStreamPayload(rawChunk) {
     var normalized = String(rawChunk || "").trim();
-    if (!normalized || normalized === "[DONE]") {
-      return "";
+    if (!normalized) {
+      return { kind: "ignore" };
+    }
+
+    if (normalized === "[DONE]") {
+      return { kind: "done" };
     }
 
     var parsed = parseJson(normalized, null);
     if (!parsed) {
-      return normalized;
+      return { kind: "chunk", text: normalized };
     }
 
     if (typeof parsed === "string") {
-      return parsed;
+      return { kind: "chunk", text: parsed };
     }
 
-    if (typeof parsed.token === "string") return parsed.token;
-    if (typeof parsed.text === "string") return parsed.text;
-    if (typeof parsed.reply === "string") return parsed.reply;
-    if (typeof parsed.answer === "string") return parsed.answer;
-    if (typeof parsed.message === "string") return parsed.message;
-    if (typeof parsed.response === "string") return parsed.response;
-    if (typeof parsed.content === "string") return parsed.content;
-    if (typeof parsed.delta === "string") return parsed.delta;
-    if (parsed.delta && typeof parsed.delta.content === "string") return parsed.delta.content;
-    if (parsed.choices && parsed.choices[0] && parsed.choices[0].delta && typeof parsed.choices[0].delta.content === "string") {
-      return parsed.choices[0].delta.content;
+    if (parsed.type === "ready") {
+      return { kind: "ignore" };
     }
 
-    return "";
+    if (parsed.type === "error") {
+      return { kind: "error", text: parsed.message || parsed.error || "Something went wrong. Please try again." };
+    }
+
+    if (parsed.type === "meta") {
+      return { kind: "meta", reply: typeof parsed.reply === "string" ? parsed.reply : "" };
+    }
+
+    if (parsed.type === "calendly_button") {
+      return {
+        kind: "calendly_button",
+        label: parsed.label || parsed.text || "Book a time",
+        url: parsed.url || parsed.link || parsed.href || ""
+      };
+    }
+
+    if (typeof parsed.token === "string") return { kind: "chunk", text: parsed.token };
+    if (typeof parsed.text === "string") return { kind: "chunk", text: parsed.text };
+    return { kind: "ignore" };
   }
 
   function mergeStreamText(currentText, incomingPiece) {
@@ -1101,23 +1121,27 @@
     return base + piece;
   }
 
-  function sendStreamChatRequest(widgetState, messageText, onChunk) {
+  function sendStreamChatRequest(widgetState, messageText, handlers) {
     var streamApiUrl = widgetState.config.streamApiUrl || STREAM_CHAT_URL;
     var payload = {
-      model: widgetState.config.aiModel || "gpt-4o-mini",
+      botId: widgetState.config.botId,
       sessionId: widgetState.sessionId || "",
-      message: messageText,
-      botId: widgetState.config.botId
+      message: messageText
     };
+
     if (widgetState.config.userId) {
       payload.userId = widgetState.config.userId;
+    }
+    if (widgetState.config.aiModel) {
+      payload.model = widgetState.config.aiModel;
     }
 
     var headers = {
       "Content-Type": "application/json"
     };
-    if (widgetState.config.chatbotToken) {
-      headers["x-chatbot-token"] = widgetState.config.chatbotToken;
+    var tokenHeader = widgetState.config.chatbotToken || widgetState.config.botId;
+    if (tokenHeader) {
+      headers["x-chatbot-token"] = tokenHeader;
     }
 
     return requestWithTimeout(streamApiUrl, {
@@ -1136,20 +1160,49 @@
       var decoder = new TextDecoder();
       var buffered = "";
       var streamText = "";
+      var finalReply = "";
 
       return new Promise(function (resolve, reject) {
+        function applyPayload(payloadResult) {
+          if (!payloadResult || payloadResult.kind === "ignore") return false;
+          if (payloadResult.kind === "done") return true;
+          if (payloadResult.kind === "meta") {
+            if (payloadResult.reply) finalReply = payloadResult.reply;
+            return false;
+          }
+          if (payloadResult.kind === "error") {
+            if (handlers && typeof handlers.onError === "function") {
+              handlers.onError(payloadResult.text);
+            }
+            return false;
+          }
+          if (payloadResult.kind === "calendly_button") {
+            if (handlers && typeof handlers.onCalendlyButton === "function") {
+              handlers.onCalendlyButton(payloadResult);
+            }
+            return false;
+          }
+          if (payloadResult.kind === "chunk") {
+            streamText = mergeStreamText(streamText, payloadResult.text);
+            if (handlers && typeof handlers.onChunk === "function") {
+              handlers.onChunk(streamText);
+            }
+          }
+          return false;
+        }
+
+        function finish() {
+          resolve({ streamText: streamText, finalReply: finalReply });
+        }
+
         function readNext() {
           reader.read().then(function (result) {
             if (result.done) {
               var remainder = buffered.trim();
               if (remainder) {
-                var finalPiece = extractStreamChunkText(remainder.replace(/^data:\s*/i, ""));
-                if (finalPiece) {
-                  streamText = mergeStreamText(streamText, finalPiece);
-                  if (typeof onChunk === "function") onChunk(streamText);
-                }
+                applyPayload(parseStreamPayload(remainder.replace(/^data:\s*/i, "")));
               }
-              resolve(streamText);
+              finish();
               return;
             }
 
@@ -1161,13 +1214,11 @@
               var line = lines[i].trim();
               if (!line) continue;
               if (line.indexOf(":") !== -1 && line.indexOf("data:") !== 0) continue;
-
               var payloadText = line.indexOf("data:") === 0 ? line.slice(5).trim() : line;
-              var piece = extractStreamChunkText(payloadText);
-              if (!piece) continue;
-
-              streamText = mergeStreamText(streamText, piece);
-              if (typeof onChunk === "function") onChunk(streamText);
+              if (applyPayload(parseStreamPayload(payloadText))) {
+                finish();
+                return;
+              }
             }
 
             readNext();
@@ -1249,6 +1300,28 @@
     sendMessage(widgetState, value);
   }
 
+
+  function renderCalendlyButton(widgetState, botBubble, payload) {
+    if (!botBubble || !botBubble.parentNode) {
+      return;
+    }
+    var existing = botBubble.parentNode.querySelector('.bot-cta');
+    if (existing) {
+      existing.parentNode.removeChild(existing);
+    }
+
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'bot-cta';
+    button.textContent = payload.label || 'Book a time';
+    button.addEventListener('click', function () {
+      if (payload.url) {
+        window.open(payload.url, '_blank', 'noopener,noreferrer');
+      }
+    });
+    botBubble.parentNode.appendChild(button);
+  }
+
   function sendMessage(widgetState, textOverride) {
     if (widgetState.isLoading) {
       return;
@@ -1288,7 +1361,8 @@
 
     setLoadingState(widgetState, true);
 
-    sendStreamChatRequest(widgetState, text, function (streamText) {
+    sendStreamChatRequest(widgetState, text, {
+      onChunk: function (streamText) {
       queuedStreamText = streamText;
       if (streamRenderFrame !== null) {
         return;
@@ -1300,12 +1374,20 @@
       }
 
       flushStreamText();
-    }).then(function (streamReply) {
+    },
+      onCalendlyButton: function (payload) {
+        renderCalendlyButton(widgetState, botBubble, payload);
+      },
+      onError: function (errorText) {
+        queuedStreamText = String(errorText || "Something went wrong. Please try again.");
+        flushStreamText();
+      }
+    }).then(function (streamResult) {
       if (streamRenderFrame !== null && typeof window !== "undefined" && typeof window.cancelAnimationFrame === "function") {
         window.cancelAnimationFrame(streamRenderFrame);
         streamRenderFrame = null;
       }
-      var finalReply = String(streamReply || "").trim() || "No response.";
+      var finalReply = String((streamResult && streamResult.finalReply) || (streamResult && streamResult.streamText) || "").trim() || "No response.";
       botBubble.innerHTML = renderMarkdown(finalReply);
       persistBotMessage(widgetState, finalReply);
       setLoadingState(widgetState, false);
