@@ -23,7 +23,8 @@
       script.getAttribute("data-chat-id") || script.getAttribute("data-chatid") || "",
       script.getAttribute("data-api-host") || "",
       script.getAttribute("data-chatbot-token") || script.getAttribute("data-token") || script.getAttribute("data-widget-token") || "",
-      script.getAttribute("data-stream-api-url") || ""
+      script.getAttribute("data-stream-api-url") || "",
+      script.getAttribute("data-bubble-version") || script.getAttribute("data-version") || script.getAttribute("data-bubble-env") || script.getAttribute("data-env") || script.getAttribute("data-mode") || script.getAttribute("data-is-test-version") || ""
     ].join("::");
   }
 
@@ -201,8 +202,44 @@
     return normalized ? ('url("' + normalized.replace(/"/g, "%22") + '")') : "none";
   }
 
-  function getApiUrl(apiHost, path) {
-    return String(apiHost || DEFAULT_API_HOST).replace(/\/$/, "") + path;
+  function isTestVersionValue(value) {
+    if (typeof value === "boolean") return value;
+    var normalized = String(value || "").toLowerCase().trim();
+    return normalized === "test" ||
+      normalized === "version-test" ||
+      normalized === "development" ||
+      normalized === "dev" ||
+      normalized === "true" ||
+      normalized === "1" ||
+      normalized === "yes";
+  }
+
+  function getBubbleVersionFromScript(scriptTag) {
+    return scriptTag.getAttribute("data-bubble-version") ||
+      scriptTag.getAttribute("data-version") ||
+      scriptTag.getAttribute("data-bubble-env") ||
+      scriptTag.getAttribute("data-env") ||
+      scriptTag.getAttribute("data-mode") ||
+      scriptTag.getAttribute("data-is-test-version") ||
+      "live";
+  }
+
+  function getVersionedApiHost(apiHost, isTestVersion) {
+    var host = String(apiHost || DEFAULT_API_HOST).replace(/\/$/, "");
+    if (isTestVersionValue(isTestVersion)) {
+      return /\/version-test$/i.test(host) ? host : host + "/version-test";
+    }
+    return host.replace(/\/version-test$/i, "");
+  }
+
+  function getApiUrl(apiHostOrConfig, path) {
+    var apiHost = apiHostOrConfig;
+    var isTestVersion = false;
+    if (apiHostOrConfig && typeof apiHostOrConfig === "object") {
+      apiHost = apiHostOrConfig.apiHost;
+      isTestVersion = apiHostOrConfig.isTestVersion;
+    }
+    return getVersionedApiHost(apiHost, isTestVersion) + path;
   }
 
   function getFirstValue(source, fieldNames) {
@@ -439,6 +476,8 @@
         scriptTag.getAttribute("data-chat-i-d")
       ),
       apiHost: scriptTag.getAttribute("data-api-host") || DEFAULT_API_HOST,
+      bubbleVersion: getBubbleVersionFromScript(scriptTag),
+      isTestVersion: isTestVersionValue(getBubbleVersionFromScript(scriptTag)),
       chatPosition: scriptTag.getAttribute("data-position") || "right",
       userId: "",
       aiModel: "gpt-4o-mini",
@@ -564,7 +603,9 @@
       aiModel: resolvedAiModel,
       chatbotToken: resolvedChatbotToken,
       streamApiUrl: resolvedStreamApiUrl,
-      saveChatPath: resolvedSaveChatPath
+      saveChatPath: resolvedSaveChatPath,
+      bubbleVersion: widgetState.config.bubbleVersion || (widgetState.config.isTestVersion ? "test" : "live"),
+      isTestVersion: isTestVersionValue(widgetState.config.isTestVersion)
     };
   }
 
@@ -1047,6 +1088,8 @@
     widgetState.config.chatbotToken = normalized.chatbotToken;
     widgetState.config.streamApiUrl = normalized.streamApiUrl;
     widgetState.config.saveChatPath = normalized.saveChatPath;
+    widgetState.config.bubbleVersion = normalized.bubbleVersion;
+    widgetState.config.isTestVersion = normalized.isTestVersion;
     widgetState.configLoaded = !!applyOptions.markAsLoaded;
 
     ensureConversationStartedState(widgetState);
@@ -1066,7 +1109,7 @@
   }
 
   function loadRemoteConfig(widgetState) {
-    var url = getApiUrl(widgetState.config.apiHost, API_PATHS.config + encodeURIComponent(getChatIdForRequests(widgetState)));
+    var url = getApiUrl(widgetState.config, API_PATHS.config + encodeURIComponent(getChatIdForRequests(widgetState)));
 
     return requestWithTimeout(url, { method: "GET" }, REQUEST_TIMEOUT)
       .then(function (response) {
@@ -1181,6 +1224,7 @@
     var payload = {
       botId: widgetState.config.botId || "",
       chatID: getChatIdForRequests(widgetState),
+      bubbleVersion: widgetState.config.bubbleVersion || (widgetState.config.isTestVersion ? "test" : "live"),
       sessionId: widgetState.sessionId || "",
       message: messageText
     };
@@ -1289,10 +1333,11 @@
 
   function saveChatToBubble(widgetState, userMessage, botMessage) {
     var savePath = widgetState.config.saveChatPath || API_PATHS.saveChat;
-    var url = getApiUrl(widgetState.config.apiHost, savePath);
+    var url = getApiUrl(widgetState.config, savePath);
     var payload = {
       botId: widgetState.config.botId || "",
       chatID: getChatIdForRequests(widgetState),
+      bubbleVersion: widgetState.config.bubbleVersion || (widgetState.config.isTestVersion ? "test" : "live"),
       userId: widgetState.config.userId || "",
       sessionId: widgetState.sessionId ? widgetState.sessionId : "",
       userMessage: String(userMessage || ""),
@@ -1319,10 +1364,11 @@
   }
 
   function sendChatRequest(widgetState, messageText, attempt) {
-    var url = getApiUrl(widgetState.config.apiHost, API_PATHS.createChat);
+    var url = getApiUrl(widgetState.config, API_PATHS.createChat);
     var payload = {
       botId: widgetState.config.botId || "",
       chatID: getChatIdForRequests(widgetState),
+      bubbleVersion: widgetState.config.bubbleVersion || (widgetState.config.isTestVersion ? "test" : "live"),
       message: messageText,
       sessionId: widgetState.sessionId || ""
     };
