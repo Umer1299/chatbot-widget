@@ -20,6 +20,7 @@
     return [
       script.getAttribute("src") || "",
       script.getAttribute("data-bot-id") || "",
+      script.getAttribute("data-chat-id") || script.getAttribute("data-chatid") || "",
       script.getAttribute("data-api-host") || ""
     ].join("::");
   }
@@ -202,6 +203,27 @@
     return String(apiHost || DEFAULT_API_HOST).replace(/\/$/, "") + path;
   }
 
+  function getFirstValue(source, fieldNames) {
+    if (!source) return "";
+
+    for (var i = 0; i < fieldNames.length; i += 1) {
+      var value = source[fieldNames[i]];
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        return value;
+      }
+    }
+
+    return "";
+  }
+
+  function normalizeIdentifier(value) {
+    return value === undefined || value === null ? "" : String(value).trim();
+  }
+
+  function getChatIdForRequests(widgetState) {
+    return normalizeIdentifier(widgetState.config.chatId || widgetState.config.botId);
+  }
+
   function escapeHtml(value) {
     return String(value || "")
       .replace(/&/g, "&amp;")
@@ -354,7 +376,7 @@
   }
 
   function persistHistory(widgetState) {
-    saveStoredHistory(widgetState.config.botId, widgetState.history || []);
+    saveStoredHistory(widgetState.config.chatId || widgetState.config.botId, widgetState.history || []);
   }
 
   function requestWithTimeout(url, options, timeoutMs) {
@@ -402,7 +424,8 @@
 
   function getWidgetConfig(scriptTag) {
     var config = {
-      botId: scriptTag.getAttribute("data-bot-id"),
+      botId: normalizeIdentifier(scriptTag.getAttribute("data-bot-id")),
+      chatId: normalizeIdentifier(scriptTag.getAttribute("data-chat-id") || scriptTag.getAttribute("data-chatid")),
       apiHost: scriptTag.getAttribute("data-api-host") || DEFAULT_API_HOST,
       chatPosition: scriptTag.getAttribute("data-position") || "right",
       userId: "",
@@ -491,6 +514,18 @@
       remoteConfig.savePath ||
       widgetState.config.saveChatPath ||
       API_PATHS.saveChat;
+    var resolvedBotId = normalizeIdentifier(getFirstValue(remoteConfig, [
+      "botId",
+      "botID",
+      "bot_id",
+      "bot"
+    ]) || widgetState.config.botId);
+    var resolvedChatId = normalizeIdentifier(getFirstValue(remoteConfig, [
+      "chatID",
+      "chatId",
+      "chat_id",
+      "chat"
+    ]) || widgetState.config.chatId || widgetState.config.botId);
 
     return {
       name: remoteConfig.name || fallbackThemeConfig.title || "Chat Assistant",
@@ -507,6 +542,8 @@
       fontFamily: remoteConfig.fontFamily || fallbackThemeConfig.fontFamily || "Inter, Arial, sans-serif",
       fontSize: normalizeFontSize(remoteConfig.fontSize || fallbackThemeConfig.fontSize, "14px"),
       position: position === "left" ? "left" : "right",
+      botId: resolvedBotId,
+      chatId: resolvedChatId,
       userId: resolvedUserId,
       aiModel: resolvedAiModel,
       chatbotToken: resolvedChatbotToken,
@@ -628,10 +665,10 @@
       host: host,
       root: root,
       config: config,
-      sessionId: getOrCreateSessionId(config.botId),
-      history: loadStoredHistory(config.botId),
+      sessionId: getOrCreateSessionId(config.chatId || config.botId),
+      history: loadStoredHistory(config.chatId || config.botId),
       uiState: (function () {
-        var ui = loadStoredUiState(config.botId);
+        var ui = loadStoredUiState(config.chatId || config.botId);
         ui.open = false;
         return ui;
       })(),
@@ -704,7 +741,7 @@
 
   function ensureConversationStartedState(widgetState) {
     widgetState.uiState.hasStartedConversation = hasUserMessages(widgetState.history);
-    saveStoredUiState(widgetState.config.botId, widgetState.uiState);
+    saveStoredUiState(widgetState.config.chatId || widgetState.config.botId, widgetState.uiState);
   }
 
   function shouldShowStarterPrompts(widgetState) {
@@ -741,7 +778,7 @@
 
     if (persistState !== false) {
       widgetState.uiState.open = !!isOpen;
-      saveStoredUiState(widgetState.config.botId, widgetState.uiState);
+      saveStoredUiState(widgetState.config.chatId || widgetState.config.botId, widgetState.uiState);
     }
 
     syncLauncherState(widgetState);
@@ -871,7 +908,7 @@
       widgetState.history.push({ role: normalized.role, text: normalized.text });
       if (normalized.role === "user") {
         widgetState.uiState.hasStartedConversation = true;
-        saveStoredUiState(widgetState.config.botId, widgetState.uiState);
+        saveStoredUiState(widgetState.config.chatId || widgetState.config.botId, widgetState.uiState);
         renderPrompts(widgetState, widgetState.starterPrompts);
       }
       persistHistory(widgetState);
@@ -954,7 +991,7 @@
   function resetConversation(widgetState) {
     widgetState.history = [];
     widgetState.uiState.hasStartedConversation = false;
-    saveStoredUiState(widgetState.config.botId, widgetState.uiState);
+    saveStoredUiState(widgetState.config.chatId || widgetState.config.botId, widgetState.uiState);
     persistHistory(widgetState);
     widgetState.elements.messages.innerHTML = "";
     if (widgetState.welcomeMessage) {
@@ -987,6 +1024,8 @@
     widgetState.fontFamily = normalized.fontFamily;
     widgetState.fontSize = normalized.fontSize;
     widgetState.config.chatPosition = normalized.position;
+    widgetState.config.botId = normalized.botId;
+    widgetState.config.chatId = normalized.chatId;
     widgetState.config.userId = normalized.userId;
     widgetState.config.aiModel = normalized.aiModel;
     widgetState.config.chatbotToken = normalized.chatbotToken;
@@ -1011,7 +1050,7 @@
   }
 
   function loadRemoteConfig(widgetState) {
-    var url = getApiUrl(widgetState.config.apiHost, API_PATHS.config + encodeURIComponent(widgetState.config.botId));
+    var url = getApiUrl(widgetState.config.apiHost, API_PATHS.config + encodeURIComponent(getChatIdForRequests(widgetState)));
 
     return requestWithTimeout(url, { method: "GET" }, REQUEST_TIMEOUT)
       .then(function (response) {
@@ -1124,7 +1163,8 @@
   function sendStreamChatRequest(widgetState, messageText, handlers) {
     var streamApiUrl = widgetState.config.streamApiUrl || STREAM_CHAT_URL;
     var payload = {
-      botId: widgetState.config.botId,
+      botId: widgetState.config.botId || "",
+      chatID: getChatIdForRequests(widgetState),
       sessionId: widgetState.sessionId || "",
       message: messageText
     };
@@ -1139,7 +1179,7 @@
     var headers = {
       "Content-Type": "application/json"
     };
-    var tokenHeader = widgetState.config.chatbotToken || widgetState.config.botId;
+    var tokenHeader = widgetState.config.chatbotToken || widgetState.config.botId || getChatIdForRequests(widgetState);
     if (tokenHeader) {
       headers["x-chatbot-token"] = tokenHeader;
     }
@@ -1234,7 +1274,8 @@
     var savePath = widgetState.config.saveChatPath || API_PATHS.saveChat;
     var url = getApiUrl(widgetState.config.apiHost, savePath);
     var payload = {
-      botId: widgetState.config.botId,
+      botId: widgetState.config.botId || "",
+      chatID: getChatIdForRequests(widgetState),
       userId: widgetState.config.userId || "",
       sessionId: widgetState.sessionId ? widgetState.sessionId : "",
       userMessage: String(userMessage || ""),
@@ -1263,7 +1304,8 @@
   function sendChatRequest(widgetState, messageText, attempt) {
     var url = getApiUrl(widgetState.config.apiHost, API_PATHS.createChat);
     var payload = {
-      botId: widgetState.config.botId,
+      botId: widgetState.config.botId || "",
+      chatID: getChatIdForRequests(widgetState),
       message: messageText,
       sessionId: widgetState.sessionId || ""
     };

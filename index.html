@@ -197,6 +197,7 @@ animation:bounce 1.4s infinite ease-in-out both
 
 var params = new URLSearchParams(window.location.search)
 var botId = params.get("botId")
+var chatID = params.get("chatID") || params.get("chatId") || params.get("chat_id") || botId
 
 if(!botId){
 document.body.innerHTML="Bot ID missing"
@@ -204,7 +205,7 @@ return
 }
 
 var BASE_URL="https://chatflowai.io/api/1.1/wf/"
-var CONFIG_URL=BASE_URL+"get-chatbot?chatID="+botId
+var CONFIG_URL=BASE_URL+"get-chatbot?chatID="+encodeURIComponent(chatID)
 var MESSAGE_URL=BASE_URL+"create-chat"
 
 var header=document.getElementById("header")
@@ -345,6 +346,7 @@ method:"POST",
 headers:{"Content-Type":"application/json"},
 body:JSON.stringify({
 botId:botId,
+chatID:chatID,
 message:text,
 sessionId:sessionId
 })
