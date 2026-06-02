@@ -21,7 +21,9 @@
       script.getAttribute("src") || "",
       script.getAttribute("data-bot-id") || "",
       script.getAttribute("data-chat-id") || script.getAttribute("data-chatid") || "",
-      script.getAttribute("data-api-host") || ""
+      script.getAttribute("data-api-host") || "",
+      script.getAttribute("data-chatbot-token") || script.getAttribute("data-token") || script.getAttribute("data-widget-token") || "",
+      script.getAttribute("data-stream-api-url") || ""
     ].join("::");
   }
 
@@ -440,8 +442,12 @@
       chatPosition: scriptTag.getAttribute("data-position") || "right",
       userId: "",
       aiModel: "gpt-4o-mini",
-      chatbotToken: "",
-      streamApiUrl: STREAM_CHAT_URL,
+      chatbotToken: normalizeIdentifier(
+        scriptTag.getAttribute("data-chatbot-token") ||
+        scriptTag.getAttribute("data-token") ||
+        scriptTag.getAttribute("data-widget-token")
+      ),
+      streamApiUrl: scriptTag.getAttribute("data-stream-api-url") || STREAM_CHAT_URL,
       saveChatPath: API_PATHS.saveChat,
       themeConfig: parseJson(scriptTag.getAttribute("data-theme-config"), {})
     };
@@ -1189,10 +1195,11 @@
     var headers = {
       "Content-Type": "application/json"
     };
-    var tokenHeader = widgetState.config.chatbotToken || widgetState.config.botId || getChatIdForRequests(widgetState);
-    if (tokenHeader) {
-      headers["x-chatbot-token"] = tokenHeader;
+    var tokenHeader = widgetState.config.chatbotToken;
+    if (!tokenHeader) {
+      throw new Error("Missing data-chatbot-token");
     }
+    headers["x-chatbot-token"] = tokenHeader;
 
     return requestWithTimeout(streamApiUrl, {
       method: "POST",
@@ -1577,16 +1584,6 @@
         state.attempts += 1;
         setTimeout(function () {
           attemptInit("retry-no-bot-id-" + state.attempts);
-        }, INIT_RETRY_DELAY);
-      }
-      return;
-    }
-
-    if (!config.chatId) {
-      if (state.attempts < MAX_INIT_ATTEMPTS) {
-        state.attempts += 1;
-        setTimeout(function () {
-          attemptInit("retry-no-chat-id-" + state.attempts);
         }, INIT_RETRY_DELAY);
       }
       return;
