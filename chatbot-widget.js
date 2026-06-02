@@ -221,7 +221,13 @@
   }
 
   function getChatIdForRequests(widgetState) {
-    return normalizeIdentifier(widgetState.config.chatId || widgetState.config.botId);
+    return normalizeIdentifier(widgetState.config.chatId);
+  }
+
+  function getConversationStorageId(config) {
+    var chatId = normalizeIdentifier(config && config.chatId);
+    var botId = normalizeIdentifier(config && config.botId);
+    return chatId ? botId + ":" + chatId : botId;
   }
 
   function escapeHtml(value) {
@@ -376,7 +382,7 @@
   }
 
   function persistHistory(widgetState) {
-    saveStoredHistory(widgetState.config.chatId || widgetState.config.botId, widgetState.history || []);
+    saveStoredHistory(getConversationStorageId(widgetState.config), widgetState.history || []);
   }
 
   function requestWithTimeout(url, options, timeoutMs) {
@@ -425,7 +431,11 @@
   function getWidgetConfig(scriptTag) {
     var config = {
       botId: normalizeIdentifier(scriptTag.getAttribute("data-bot-id")),
-      chatId: normalizeIdentifier(scriptTag.getAttribute("data-chat-id") || scriptTag.getAttribute("data-chatid")),
+      chatId: normalizeIdentifier(
+        scriptTag.getAttribute("data-chat-id") ||
+        scriptTag.getAttribute("data-chatid") ||
+        scriptTag.getAttribute("data-chat-i-d")
+      ),
       apiHost: scriptTag.getAttribute("data-api-host") || DEFAULT_API_HOST,
       chatPosition: scriptTag.getAttribute("data-position") || "right",
       userId: "",
@@ -525,7 +535,7 @@
       "chatId",
       "chat_id",
       "chat"
-    ]) || widgetState.config.chatId || widgetState.config.botId);
+    ]) || widgetState.config.chatId);
 
     return {
       name: remoteConfig.name || fallbackThemeConfig.title || "Chat Assistant",
@@ -665,10 +675,10 @@
       host: host,
       root: root,
       config: config,
-      sessionId: getOrCreateSessionId(config.chatId || config.botId),
-      history: loadStoredHistory(config.chatId || config.botId),
+      sessionId: getOrCreateSessionId(getConversationStorageId(config)),
+      history: loadStoredHistory(getConversationStorageId(config)),
       uiState: (function () {
-        var ui = loadStoredUiState(config.chatId || config.botId);
+        var ui = loadStoredUiState(getConversationStorageId(config));
         ui.open = false;
         return ui;
       })(),
@@ -741,7 +751,7 @@
 
   function ensureConversationStartedState(widgetState) {
     widgetState.uiState.hasStartedConversation = hasUserMessages(widgetState.history);
-    saveStoredUiState(widgetState.config.chatId || widgetState.config.botId, widgetState.uiState);
+    saveStoredUiState(getConversationStorageId(widgetState.config), widgetState.uiState);
   }
 
   function shouldShowStarterPrompts(widgetState) {
@@ -778,7 +788,7 @@
 
     if (persistState !== false) {
       widgetState.uiState.open = !!isOpen;
-      saveStoredUiState(widgetState.config.chatId || widgetState.config.botId, widgetState.uiState);
+      saveStoredUiState(getConversationStorageId(widgetState.config), widgetState.uiState);
     }
 
     syncLauncherState(widgetState);
@@ -908,7 +918,7 @@
       widgetState.history.push({ role: normalized.role, text: normalized.text });
       if (normalized.role === "user") {
         widgetState.uiState.hasStartedConversation = true;
-        saveStoredUiState(widgetState.config.chatId || widgetState.config.botId, widgetState.uiState);
+        saveStoredUiState(getConversationStorageId(widgetState.config), widgetState.uiState);
         renderPrompts(widgetState, widgetState.starterPrompts);
       }
       persistHistory(widgetState);
@@ -991,7 +1001,7 @@
   function resetConversation(widgetState) {
     widgetState.history = [];
     widgetState.uiState.hasStartedConversation = false;
-    saveStoredUiState(widgetState.config.chatId || widgetState.config.botId, widgetState.uiState);
+    saveStoredUiState(getConversationStorageId(widgetState.config), widgetState.uiState);
     persistHistory(widgetState);
     widgetState.elements.messages.innerHTML = "";
     if (widgetState.welcomeMessage) {
@@ -1572,6 +1582,16 @@
       return;
     }
 
+    if (!config.chatId) {
+      if (state.attempts < MAX_INIT_ATTEMPTS) {
+        state.attempts += 1;
+        setTimeout(function () {
+          attemptInit("retry-no-chat-id-" + state.attempts);
+        }, INIT_RETRY_DELAY);
+      }
+      return;
+    }
+
     if (!document.documentElement) {
       if (state.attempts < MAX_INIT_ATTEMPTS) {
         state.attempts += 1;
@@ -1582,18 +1602,22 @@
       return;
     }
 
-    if (state.started && state.botId === config.botId) {
+    var instanceId = getConversationStorageId(config);
+
+    if (state.started && state.instanceId === instanceId) {
       return;
     }
 
     state.started = true;
     state.botId = config.botId;
+    state.chatId = config.chatId;
+    state.instanceId = instanceId;
 
-    if (!state.bots[config.botId]) {
-      state.bots[config.botId] = { initialized: false, initializing: false };
+    if (!state.bots[instanceId]) {
+      state.bots[instanceId] = { initialized: false, initializing: false };
     }
 
-    var botState = state.bots[config.botId];
+    var botState = state.bots[instanceId];
     if (botState.initialized || botState.initializing) {
       return;
     }
@@ -1626,6 +1650,8 @@
         bootstrapped: true,
         started: false,
         botId: "",
+        chatId: "",
+        instanceId: "",
         lastSignature: "",
         scheduledReasons: {}
       };

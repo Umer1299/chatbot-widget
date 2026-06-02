@@ -196,11 +196,16 @@ animation:bounce 1.4s infinite ease-in-out both
 (function(){
 
 var params = new URLSearchParams(window.location.search)
-var botId = params.get("botId")
-var chatID = params.get("chatID") || params.get("chatId") || params.get("chat_id") || botId
+var botId = params.get("botId") || params.get("botID") || params.get("bot_id")
+var chatID = params.get("chatID") || params.get("chatId") || params.get("chat_id")
 
 if(!botId){
 document.body.innerHTML="Bot ID missing"
+return
+}
+
+if(!chatID){
+document.body.innerHTML="Chat ID missing"
 return
 }
 
