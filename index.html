@@ -48,8 +48,6 @@
       var DEFAULT_API_HOST = "https://chatflowai.io";
       var DEFAULT_STREAM_URL = "https://chatbot-backend-w1ju.onrender.com/api/chat?stream=true";
       var params = new URLSearchParams(window.location.search);
-      var initialBotId = getParam(["botId", "botID", "bot_id", "bot"]);
-      var chatId = getParam(["chatID", "chatId", "chat_id", "chat"]);
       var loader = document.getElementById("embed-loader");
       var errorBox = document.getElementById("embed-error");
       var iframeMode = getParam(["iframeMode", "iframe", "embedMode"]) !== "false";
@@ -62,39 +60,6 @@
         return "";
       }
 
-      function isTestVersionValue(value) {
-        if (typeof value === "boolean") return value;
-        var normalized = String(value || "").toLowerCase().trim();
-        return normalized === "test" || normalized === "version-test" || normalized === "development" || normalized === "dev" || normalized === "true" || normalized === "1" || normalized === "yes";
-      }
-
-      function getVersionedApiHost(apiHost, isTestVersion) {
-        var host = String(apiHost || DEFAULT_API_HOST).replace(/\/$/, "");
-        if (isTestVersionValue(isTestVersion)) return /\/version-test$/i.test(host) ? host : host + "/version-test";
-        return host.replace(/\/version-test$/i, "");
-      }
-
-      function getBubbleVersion() {
-        return getParam(["bubbleVersion", "version", "env", "mode", "bubbleEnv"]);
-      }
-
-      function getApiHost() {
-        return getParam(["apiHost", "api_host", "dataApiHost"]) || DEFAULT_API_HOST;
-      }
-
-      function normalizeConfigResponse(data) {
-        return (data && data.response) || data || {};
-      }
-
-      function firstValue(source, names) {
-        if (!source) return "";
-        for (var i = 0; i < names.length; i += 1) {
-          var value = source[names[i]];
-          if (value !== undefined && value !== null && String(value).trim() !== "") return String(value).trim();
-        }
-        return "";
-      }
-
       function showError(message) {
         if (loader) loader.style.display = "none";
         if (errorBox) {
@@ -103,99 +68,64 @@
         }
       }
 
-      function getBubbleConfig() {
-        if (!chatId) return Promise.resolve({});
-
-        var apiHost = getVersionedApiHost(getApiHost(), getBubbleVersion());
-        var url = apiHost + "/api/1.1/wf/get-chatbot?chatID=" + encodeURIComponent(chatId);
-
-        return fetch(url, { method: "GET" })
-          .then(function (response) {
-            if (!response.ok) throw new Error("Bubble config request failed");
-            return response.json();
-          })
-          .then(normalizeConfigResponse)
-          .catch(function (error) {
-            if (window.console && console.warn) console.warn("Unable to load Bubble config by chatID. Falling back to URL params.", error);
-            return {};
-          });
+      function copyParamToData(script, paramNames, dataName, fallback) {
+        var value = getParam(paramNames) || fallback || "";
+        if (value) script.setAttribute(dataName, value);
+        return value;
       }
 
-      function bootstrapWidget(remoteConfig) {
-        var resolvedBotId = initialBotId || firstValue(remoteConfig, ["botId", "botID", "bot_id", "bot"]);
-        var resolvedChatId = chatId || firstValue(remoteConfig, ["chatID", "chatId", "chat_id", "chat"]);
-        var resolvedToken = getParam(["token", "chatbotToken", "widgetToken", "chatbot_token"]) || firstValue(remoteConfig, ["chatbotToken", "chatbot_token", "widgetToken", "token"]);
-        var resolvedStreamUrl = getParam(["streamApiUrl", "stream_api_url", "chatApiUrl"]) || firstValue(remoteConfig, ["streamApiUrl", "stream_api_url", "streamURL", "streamUrl", "chatApiUrl", "chat_api_url"]) || DEFAULT_STREAM_URL;
+      var botId = getParam(["data-bot-id", "botId", "botID", "bot_id", "bot"]);
+      var chatbotToken = getParam(["data-chatbot-token", "chatbotToken", "chatbot_token", "widgetToken", "widget_token", "token", "data-token", "data-widget-token"]);
 
-        if (!resolvedBotId) {
-          showError("Bot ID missing. Add ?botId=YOUR_BOT_ID or provide a valid ?chatID=YOUR_CHAT_ID that returns botId from Bubble.");
-          return;
-        }
+      if (!botId) {
+        showError("Bot ID missing. Use ?botId=YOUR_BOT_ID in the index.html URL.");
+        return;
+      }
 
-        var script = document.createElement("script");
-        script.src = getParam(["widgetSrc", "scriptSrc"]) || "./chatbot-widget.js";
-        script.async = true;
-        script.setAttribute("data-bot-id", resolvedBotId);
-        if (resolvedChatId) script.setAttribute("data-chat-id", resolvedChatId);
-        script.setAttribute("data-api-host", getApiHost());
-        script.setAttribute("data-stream-api-url", resolvedStreamUrl);
-        if (resolvedToken) script.setAttribute("data-chatbot-token", resolvedToken);
+      var script = document.createElement("script");
+      script.src = getParam(["widgetSrc", "scriptSrc"]) || "./chatbot-widget.js";
+      script.async = true;
 
-        var bubbleVersion = getBubbleVersion();
-        if (bubbleVersion) script.setAttribute("data-bubble-version", bubbleVersion);
+      // Match chatbot-widget.js exactly: index.html only creates the same script tag
+      // with the same data-* attributes the normal embed uses.
+      script.setAttribute("data-bot-id", botId);
+      copyParamToData(script, ["data-chat-id", "chatID", "chatId", "chat_id", "chat"], "data-chat-id");
+      copyParamToData(script, ["data-api-host", "apiHost", "api_host", "dataApiHost"], "data-api-host", DEFAULT_API_HOST);
+      copyParamToData(script, ["data-chatbot-token", "chatbotToken", "chatbot_token", "widgetToken", "widget_token", "token", "data-token", "data-widget-token"], "data-chatbot-token", chatbotToken);
+      copyParamToData(script, ["data-stream-api-url", "streamApiUrl", "stream_api_url", "chatApiUrl", "chat_api_url"], "data-stream-api-url", DEFAULT_STREAM_URL);
+      copyParamToData(script, ["data-bubble-version", "bubbleVersion", "version", "env", "mode", "bubbleEnv", "data-env", "data-mode"], "data-bubble-version");
+      copyParamToData(script, ["data-position", "position"], "data-position");
 
-        copyParamToData(script, ["position"], "data-position");
-
-        var themeConfig = getParam(["themeConfig", "theme_config"]);
-        if (!themeConfig) {
-          var generatedThemeConfig = {
-            autoOpen: iframeMode,
-            title: firstValue(remoteConfig, ["name", "title", "businessName", "business_name"]),
-            primaryColor: firstValue(remoteConfig, ["primaryColor", "primary_color"]),
-            welcomeMessage: firstValue(remoteConfig, ["welcomeMessage", "welcome_message"]),
-            inputPlaceholder: firstValue(remoteConfig, ["inputPlaceholder", "input_placeholder"]),
-            iconUrl: firstValue(remoteConfig, ["iconUrl", "iconURL", "icon", "avatar", "chatIcon", "launcherIcon"]),
-            brandingName: firstValue(remoteConfig, ["brandingName", "brandingText", "brandName"]),
-            brandingUrl: firstValue(remoteConfig, ["brandingUrl", "brandUrl"])
-          };
-
-          var starterPrompts = remoteConfig && remoteConfig.starterPrompts;
-          if (starterPrompts === undefined) starterPrompts = remoteConfig && remoteConfig.starter_prompts;
-          if (starterPrompts !== undefined) generatedThemeConfig.starterPrompts = starterPrompts;
-
-          themeConfig = JSON.stringify(generatedThemeConfig);
-        }
+      var themeConfig = getParam(["data-theme-config", "themeConfig", "theme_config"]);
+      if (themeConfig) {
         script.setAttribute("data-theme-config", themeConfig);
-
-        function copyParamToData(targetScript, paramNames, dataName) {
-          var value = getParam(paramNames);
-          if (value) targetScript.setAttribute(dataName, value);
-        }
-
-        script.onload = function () {
-          waitForWidgetHost(resolvedBotId);
-        };
-
-        script.onerror = function () {
-          showError("Unable to load chatbot-widget.js.");
-        };
-
-        document.body.appendChild(script);
+      } else if (iframeMode) {
+        script.setAttribute("data-theme-config", JSON.stringify({ autoOpen: true }));
       }
 
-      function waitForWidgetHost(botId) {
+      script.onload = function () {
+        waitForWidgetHost(botId);
+      };
+
+      script.onerror = function () {
+        showError("Unable to load chatbot-widget.js.");
+      };
+
+      document.body.appendChild(script);
+
+      function waitForWidgetHost(currentBotId) {
         var attempts = 0;
         var maxAttempts = 80;
         var timer = window.setInterval(function () {
           attempts += 1;
-          var host = document.getElementById("chatbot-widget-host-" + botId);
+          var host = document.getElementById("chatbot-widget-host-" + currentBotId);
           if (host && host.shadowRoot) {
             window.clearInterval(timer);
             if (loader) loader.style.display = "none";
             if (iframeMode) forceIframeLayout(host);
           } else if (attempts >= maxAttempts) {
             window.clearInterval(timer);
-            showError("Chatbot loaded, but the widget host was not created. Check botId, chatID, and token settings.");
+            showError("Chatbot loaded, but the widget host was not created. Check botId and chatbotToken.");
           }
         }, 100);
       }
@@ -228,8 +158,6 @@
         window.setTimeout(keepOpen, 750);
         window.setInterval(keepOpen, 1500);
       }
-
-      getBubbleConfig().then(bootstrapWidget);
     })();
   </script>
 </body>
