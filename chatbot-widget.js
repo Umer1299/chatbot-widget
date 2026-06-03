@@ -7,355 +7,80 @@
   var FALLBACK_TIMEOUTS = [0, 250, 750, 1500, 3000, 5000, 8000];
   var MAX_Z_INDEX = 2147483647;
   var REQUEST_TIMEOUT = 60000;
-  var API_PATHS = {
-    config: "/api/1.1/wf/get-chatbot?botId=",
-    createChat: "/api/1.1/wf/create-chat",
-    saveChat: "/api/1.1/wf/save-chat"
-  };
+  var API_PATHS = { config: "/api/1.1/wf/get-chatbot?botId=", createChat: "/api/1.1/wf/create-chat", saveChat: "/api/1.1/wf/save-chat" };
   var STREAM_CHAT_URL = "https://chatbot-backend-w1ju.onrender.com/api/chat?stream=true";
   var EXECUTING_SCRIPT = detectCurrentScriptTag();
-
-  function getScriptSignature(script) {
-    if (!script) return "";
-    return [
-      script.getAttribute("src") || "",
-      script.getAttribute("data-bot-id") || "",
-      script.getAttribute("data-chat-id") || script.getAttribute("data-chatid") || "",
-      script.getAttribute("data-api-host") || "",
-      script.getAttribute("data-chatbot-token") || script.getAttribute("data-token") || script.getAttribute("data-widget-token") || "",
-      script.getAttribute("data-stream-api-url") || "",
-      script.getAttribute("data-bubble-version") || script.getAttribute("data-version") || script.getAttribute("data-bubble-env") || script.getAttribute("data-env") || script.getAttribute("data-mode") || script.getAttribute("data-is-test-version") || ""
-    ].join("::");
-  }
-
-  function getStackScriptSrc() {
-    try {
-      throw new Error();
-    } catch (error) {
-      var stack = (error && error.stack) || "";
-      var srcMatch = stack.match(/(https?:[^\s)]+\.js(?:\?[^\s)]*)?)/i);
-      if (srcMatch && srcMatch[1]) {
-        return srcMatch[1];
-      }
-
-      var fileMatch = stack.match(/(file:[^\s)]+\.js(?:\?[^\s)]*)?)/i);
-      return fileMatch && fileMatch[1] ? fileMatch[1] : "";
-    }
-  }
-
-  function findScriptBySrc(src) {
-    if (!src) return null;
-
-    var normalizedSrc = src.split("#")[0];
-    var scripts = document.getElementsByTagName("script");
-    for (var i = scripts.length - 1; i >= 0; i -= 1) {
-      var candidate = scripts[i];
-      if (!candidate || !candidate.src) continue;
-      if (candidate.src === normalizedSrc || candidate.src.split("#")[0] === normalizedSrc) return candidate;
-    }
-    return null;
-  }
-
-  function findInteractiveScript() {
-    var scripts = document.getElementsByTagName("script");
-    for (var i = scripts.length - 1; i >= 0; i -= 1) {
-      if (scripts[i] && scripts[i].readyState === "interactive") return scripts[i];
-    }
-    return null;
-  }
-
-  function detectCurrentScriptTag() {
-    if (typeof document === "undefined") return null;
-    if (document.currentScript && document.currentScript.tagName === "SCRIPT") return document.currentScript;
-    var interactiveScript = findInteractiveScript();
-    if (interactiveScript) return interactiveScript;
-    var stackScript = findScriptBySrc(getStackScriptSrc());
-    if (stackScript) return stackScript;
-    var configuredScripts = document.querySelectorAll("script[data-bot-id]");
-    if (configuredScripts.length === 1) return configuredScripts[0];
-    if (configuredScripts.length > 1) return configuredScripts[configuredScripts.length - 1];
-    return null;
-  }
-
-  function getCurrentScriptTag() {
-    if (EXECUTING_SCRIPT && EXECUTING_SCRIPT.isConnected !== false) return EXECUTING_SCRIPT;
-    return detectCurrentScriptTag();
-  }
-
-  function parseJson(value, fallback) {
-    if (!value) return fallback;
-    try { return JSON.parse(value); } catch (error) { return fallback; }
-  }
-
-  function toBoolean(value, fallback) {
-    if (typeof value === "boolean") return value;
-    if (typeof value === "string") {
-      var normalized = value.toLowerCase().trim();
-      if (normalized === "true" || normalized === "1" || normalized === "yes") return true;
-      if (normalized === "false" || normalized === "0" || normalized === "no") return false;
-    }
-    return typeof fallback === "boolean" ? fallback : false;
-  }
-
-  function normalizeFontSize(value, fallback) {
-    if (typeof value === "number" && !isNaN(value)) return value + "px";
-    if (typeof value === "string" && value.trim()) {
-      if (/^\d+(?:\.\d+)?$/.test(value.trim())) return value.trim() + "px";
-      return value.trim();
-    }
-    return fallback;
-  }
-
-  function getDefaultLauncherIcon() {
-    return 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="32" fill="#2563eb"/><path d="M20 23.5C20 19.9101 22.9101 17 26.5 17H37.5C41.0899 17 44 19.9101 44 23.5V30.5C44 34.0899 41.0899 37 37.5 37H31.5L24.5 43V37.7719C21.8692 36.9238 20 34.4607 20 31.5625V23.5Z" fill="white"/></svg>');
-  }
-
-  function hasUserMessages(history) {
-    for (var i = 0; i < history.length; i += 1) if (history[i] && history[i].role === "user") return true;
-    return false;
-  }
-
-  function normalizeIconUrl(url, baseHost) {
-    var raw = String(url || "").trim();
-    if (!raw) return "";
-    if (raw.indexOf("data:") === 0 || raw.indexOf("blob:") === 0) return raw;
-    if (/^https?:\/\//i.test(raw)) return encodeURI(raw);
-    if (/^\/\//.test(raw) && window.location && window.location.protocol) return window.location.protocol + raw;
-    if (/^\//.test(raw)) return baseHost ? String(baseHost).replace(/\/$/, "") + raw : window.location.origin + raw;
-    if (baseHost && !/^https?:\/\//i.test(raw)) return String(baseHost).replace(/\/$/, "") + "/" + raw.replace(/^\//, "");
-    return encodeURI(raw);
-  }
-
-  function getCssBackgroundImage(url, baseHost) {
-    var normalized = normalizeIconUrl(url, baseHost);
-    return normalized ? ('url("' + normalized.replace(/"/g, "%22") + '")') : "none";
-  }
-
-  function isTestVersionValue(value) {
-    if (typeof value === "boolean") return value;
-    var normalized = String(value || "").toLowerCase().trim();
-    return normalized === "test" || normalized === "version-test" || normalized === "development" || normalized === "dev" || normalized === "true" || normalized === "1" || normalized === "yes";
-  }
-
-  function getBubbleVersionFromScript(scriptTag) {
-    return scriptTag.getAttribute("data-bubble-version") || scriptTag.getAttribute("data-version") || scriptTag.getAttribute("data-bubble-env") || scriptTag.getAttribute("data-env") || scriptTag.getAttribute("data-mode") || scriptTag.getAttribute("data-is-test-version") || "live";
-  }
-
-  function getVersionedApiHost(apiHost, isTestVersion) {
-    var host = String(apiHost || DEFAULT_API_HOST).replace(/\/$/, "");
-    if (isTestVersionValue(isTestVersion)) return /\/version-test$/i.test(host) ? host : host + "/version-test";
-    return host.replace(/\/version-test$/i, "");
-  }
-
-  function getApiUrl(apiHostOrConfig, path) {
-    var apiHost = apiHostOrConfig;
-    var isTestVersion = false;
-    if (apiHostOrConfig && typeof apiHostOrConfig === "object") {
-      apiHost = apiHostOrConfig.apiHost;
-      isTestVersion = apiHostOrConfig.isTestVersion;
-    }
-    return getVersionedApiHost(apiHost, isTestVersion) + path;
-  }
-
-  function getFirstValue(source, fieldNames) {
-    if (!source) return "";
-    for (var i = 0; i < fieldNames.length; i += 1) {
-      var value = source[fieldNames[i]];
-      if (value !== undefined && value !== null && String(value).trim() !== "") return value;
-    }
-    return "";
-  }
-
+  function getScriptSignature(script) { if (!script) return ""; return [script.getAttribute("src") || "", script.getAttribute("data-bot-id") || "", script.getAttribute("data-chat-id") || script.getAttribute("data-chatid") || "", script.getAttribute("data-api-host") || "", script.getAttribute("data-chatbot-token") || script.getAttribute("data-token") || script.getAttribute("data-widget-token") || "", script.getAttribute("data-stream-api-url") || "", script.getAttribute("data-bubble-version") || script.getAttribute("data-version") || script.getAttribute("data-bubble-env") || script.getAttribute("data-env") || script.getAttribute("data-mode") || script.getAttribute("data-is-test-version") || ""].join("::"); }
+  function getStackScriptSrc() { try { throw new Error(); } catch (error) { var stack = (error && error.stack) || ""; var srcMatch = stack.match(/(https?:[^\s)]+\.js(?:\?[^\s)]*)?)/i); if (srcMatch && srcMatch[1]) return srcMatch[1]; var fileMatch = stack.match(/(file:[^\s)]+\.js(?:\?[^\s)]*)?)/i); return fileMatch && fileMatch[1] ? fileMatch[1] : ""; } }
+  function findScriptBySrc(src) { if (!src) return null; var normalizedSrc = src.split("#")[0]; var scripts = document.getElementsByTagName("script"); for (var i = scripts.length - 1; i >= 0; i -= 1) { var candidate = scripts[i]; if (!candidate || !candidate.src) continue; if (candidate.src === normalizedSrc || candidate.src.split("#")[0] === normalizedSrc) return candidate; } return null; }
+  function findInteractiveScript() { var scripts = document.getElementsByTagName("script"); for (var i = scripts.length - 1; i >= 0; i -= 1) if (scripts[i] && scripts[i].readyState === "interactive") return scripts[i]; return null; }
+  function detectCurrentScriptTag() { if (typeof document === "undefined") return null; if (document.currentScript && document.currentScript.tagName === "SCRIPT") return document.currentScript; var interactiveScript = findInteractiveScript(); if (interactiveScript) return interactiveScript; var stackScript = findScriptBySrc(getStackScriptSrc()); if (stackScript) return stackScript; var configuredScripts = document.querySelectorAll("script[data-bot-id]"); if (configuredScripts.length === 1) return configuredScripts[0]; if (configuredScripts.length > 1) return configuredScripts[configuredScripts.length - 1]; return null; }
+  function getCurrentScriptTag() { if (EXECUTING_SCRIPT && EXECUTING_SCRIPT.isConnected !== false) return EXECUTING_SCRIPT; return detectCurrentScriptTag(); }
+  function parseJson(value, fallback) { if (!value) return fallback; try { return JSON.parse(value); } catch (error) { return fallback; } }
+  function toBoolean(value, fallback) { if (typeof value === "boolean") return value; if (typeof value === "string") { var normalized = value.toLowerCase().trim(); if (normalized === "true" || normalized === "1" || normalized === "yes") return true; if (normalized === "false" || normalized === "0" || normalized === "no") return false; } return typeof fallback === "boolean" ? fallback : false; }
+  function normalizeFontSize(value, fallback) { if (typeof value === "number" && !isNaN(value)) return value + "px"; if (typeof value === "string" && value.trim()) { if (/^\d+(?:\.\d+)?$/.test(value.trim())) return value.trim() + "px"; return value.trim(); } return fallback; }
+  function getDefaultLauncherIcon() { return 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none"><rect width="64" height="64" rx="32" fill="#2563eb"/><path d="M20 23.5C20 19.9101 22.9101 17 26.5 17H37.5C41.0899 17 44 19.9101 44 23.5V30.5C44 34.0899 41.0899 37 37.5 37H31.5L24.5 43V37.7719C21.8692 36.9238 20 34.4607 20 31.5625V23.5Z" fill="white"/></svg>'); }
+  function hasUserMessages(history) { for (var i = 0; i < history.length; i += 1) if (history[i] && history[i].role === "user") return true; return false; }
+  function normalizeIconUrl(url, baseHost) { var raw = String(url || "").trim(); if (!raw) return ""; if (raw.indexOf("data:") === 0 || raw.indexOf("blob:") === 0) return raw; if (/^https?:\/\//i.test(raw)) return encodeURI(raw); if (/^\/\//.test(raw) && window.location && window.location.protocol) return window.location.protocol + raw; if (/^\//.test(raw)) return baseHost ? String(baseHost).replace(/\/$/, "") + raw : window.location.origin + raw; if (baseHost && !/^https?:\/\//i.test(raw)) return String(baseHost).replace(/\/$/, "") + "/" + raw.replace(/^\//, ""); return encodeURI(raw); }
+  function getCssBackgroundImage(url, baseHost) { var normalized = normalizeIconUrl(url, baseHost); return normalized ? ('url("' + normalized.replace(/"/g, "%22") + '")') : "none"; }
+  function isTestVersionValue(value) { if (typeof value === "boolean") return value; var normalized = String(value || "").toLowerCase().trim(); return normalized === "test" || normalized === "version-test" || normalized === "development" || normalized === "dev" || normalized === "true" || normalized === "1" || normalized === "yes"; }
+  function getBubbleVersionFromScript(scriptTag) { return scriptTag.getAttribute("data-bubble-version") || scriptTag.getAttribute("data-version") || scriptTag.getAttribute("data-bubble-env") || scriptTag.getAttribute("data-env") || scriptTag.getAttribute("data-mode") || scriptTag.getAttribute("data-is-test-version") || "live"; }
+  function getVersionedApiHost(apiHost, isTestVersion) { var host = String(apiHost || DEFAULT_API_HOST).replace(/\/$/, ""); if (isTestVersionValue(isTestVersion)) return /\/version-test$/i.test(host) ? host : host + "/version-test"; return host.replace(/\/version-test$/i, ""); }
+  function getApiUrl(apiHostOrConfig, path) { var apiHost = apiHostOrConfig, isTestVersion = false; if (apiHostOrConfig && typeof apiHostOrConfig === "object") { apiHost = apiHostOrConfig.apiHost; isTestVersion = apiHostOrConfig.isTestVersion; } return getVersionedApiHost(apiHost, isTestVersion) + path; }
+  function getFirstValue(source, fieldNames) { if (!source) return ""; for (var i = 0; i < fieldNames.length; i += 1) { var value = source[fieldNames[i]]; if (value !== undefined && value !== null && String(value).trim() !== "") return value; } return ""; }
   function normalizeIdentifier(value) { return value === undefined || value === null ? "" : String(value).trim(); }
   function getChatIdForRequests(widgetState) { return normalizeIdentifier(widgetState.config.chatId || widgetState.config.botId); }
-  function getConversationStorageId(config) {
-    var chatId = normalizeIdentifier(config && config.chatId);
-    var botId = normalizeIdentifier(config && config.botId);
-    return chatId ? botId + ":" + chatId : botId;
-  }
-
-  function escapeHtml(value) {
-    return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#39;");
-  }
-  function renderInlineMarkdown(text) {
-    return escapeHtml(text).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/\*([^*]+)\*/g, "<em>$1</em>").replace(/\[([^\]]+)\]\((https?:[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-  }
-  function renderMarkdown(text) {
-    if (window.marked && typeof window.marked.parse === "function") return window.marked.parse(text);
-    var source = String(text || "").replace(/\r\n/g, "\n");
-    if (!source.trim()) return "";
-    return "<p>" + renderInlineMarkdown(source).replace(/\n/g, "<br>") + "</p>";
-  }
+  function getConversationStorageId(config) { var chatId = normalizeIdentifier(config && config.chatId); var botId = normalizeIdentifier(config && config.botId); return chatId ? botId + ":" + chatId : botId; }
+  function escapeHtml(value) { return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#39;"); }
+  function renderInlineMarkdown(text) { return escapeHtml(text).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/\*([^*]+)\*/g, "<em>$1</em>").replace(/\[([^\]]+)\]\((https?:[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'); }
+  function renderMarkdown(text) { if (window.marked && typeof window.marked.parse === "function") return window.marked.parse(text); var source = String(text || "").replace(/\r\n/g, "\n"); if (!source.trim()) return ""; return "<p>" + renderInlineMarkdown(source).replace(/\n/g, "<br>") + "</p>"; }
   function createUid() { return window.crypto && typeof window.crypto.randomUUID === "function" ? window.crypto.randomUUID() : "cw_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10); }
   function getSessionStorageKey(botId) { return "chatbot-widget-session:" + botId; }
   function getHistoryStorageKey(botId) { return "chatbot-widget-history:" + botId; }
   function getStateStorageKey(botId) { return "chatbot-widget-ui-state:" + botId; }
-  function getOrCreateSessionId(botId) {
-    var key = getSessionStorageKey(botId), existing = "";
-    try { existing = window.localStorage.getItem(key) || ""; if (!existing) { existing = createUid(); window.localStorage.setItem(key, existing); } } catch (e) { existing = createUid(); }
-    return existing;
-  }
+  function getOrCreateSessionId(botId) { var key = getSessionStorageKey(botId), existing = ""; try { existing = window.localStorage.getItem(key) || ""; if (!existing) { existing = createUid(); window.localStorage.setItem(key, existing); } } catch (e) { existing = createUid(); } return existing; }
   function loadStoredHistory(botId) { try { return parseJson(window.localStorage.getItem(getHistoryStorageKey(botId)), []) || []; } catch (e) { return []; } }
   function saveStoredHistory(botId, history) { try { window.localStorage.setItem(getHistoryStorageKey(botId), JSON.stringify(history || [])); } catch (e) {} }
   function loadStoredUiState(botId) { try { return parseJson(window.localStorage.getItem(getStateStorageKey(botId)), {}) || {}; } catch (e) { return {}; } }
   function saveStoredUiState(botId, state) { try { window.localStorage.setItem(getStateStorageKey(botId), JSON.stringify(state || {})); } catch (e) {} }
   function persistHistory(widgetState) { saveStoredHistory(getConversationStorageId(widgetState.config), widgetState.history || []); }
-
-  function requestWithTimeout(url, options, timeoutMs) {
-    var controller = window.AbortController ? new AbortController() : null;
-    var requestOptions = options || {};
-    var timeoutId = null;
-    if (controller) requestOptions.signal = controller.signal;
-    return new Promise(function (resolve, reject) {
-      timeoutId = window.setTimeout(function () { if (controller) controller.abort(); reject(new Error("Request timed out")); }, timeoutMs);
-      fetch(url, requestOptions).then(function (response) { window.clearTimeout(timeoutId); resolve(response); }).catch(function (error) { window.clearTimeout(timeoutId); reject(error); });
-    });
-  }
-
-  function ensureHighZIndex(botId) {
-    var styleId = "chatbot-widget-zindex-" + botId;
-    if (document.getElementById(styleId)) return;
-    var style = document.createElement("style");
-    style.id = styleId;
-    style.textContent = '[data-chatbot-widget-host="' + botId + '"] { z-index: ' + MAX_Z_INDEX + ' !important; } [data-chatbot-widget-host="' + botId + '"] * { box-sizing: border-box; }';
-    (document.head || document.documentElement).appendChild(style);
-  }
-
-  function getWidgetConfig(scriptTag) {
-    return {
-      botId: normalizeIdentifier(scriptTag.getAttribute("data-bot-id")),
-      chatId: normalizeIdentifier(scriptTag.getAttribute("data-chat-id") || scriptTag.getAttribute("data-chatid") || scriptTag.getAttribute("data-chat-i-d")),
-      apiHost: scriptTag.getAttribute("data-api-host") || DEFAULT_API_HOST,
-      bubbleVersion: getBubbleVersionFromScript(scriptTag),
-      isTestVersion: isTestVersionValue(getBubbleVersionFromScript(scriptTag)),
-      chatPosition: scriptTag.getAttribute("data-position") || "right",
-      userId: "",
-      aiModel: "gpt-4o-mini",
-      chatbotToken: normalizeIdentifier(scriptTag.getAttribute("data-chatbot-token") || scriptTag.getAttribute("data-token") || scriptTag.getAttribute("data-widget-token")),
-      streamApiUrl: scriptTag.getAttribute("data-stream-api-url") || STREAM_CHAT_URL,
-      saveChatPath: API_PATHS.saveChat,
-      themeConfig: parseJson(scriptTag.getAttribute("data-theme-config"), {})
-    };
-  }
-
-  function normalizeRemoteConfig(widgetState, remoteConfig) {
-    var fallbackThemeConfig = widgetState.config.themeConfig || {};
-    var position = remoteConfig.position || widgetState.config.chatPosition || fallbackThemeConfig.position || "right";
-    var prompts = remoteConfig.starterPrompts;
-    if (typeof prompts === "string") prompts = parseJson(prompts, prompts);
-    if (!Array.isArray(prompts)) prompts = Array.isArray(fallbackThemeConfig.starterPrompts) ? fallbackThemeConfig.starterPrompts : [];
-    return {
-      name: remoteConfig.name || fallbackThemeConfig.title || "Chat Assistant",
-      primaryColor: remoteConfig.primaryColor || fallbackThemeConfig.primaryColor || "#2563eb",
-      welcomeMessage: remoteConfig.welcomeMessage || fallbackThemeConfig.welcomeMessage || "",
-      starterPrompts: prompts,
-      inputPlaceholder: remoteConfig.inputPlaceholder || fallbackThemeConfig.inputPlaceholder || "Message...",
-      iconUrl: remoteConfig.iconUrl || remoteConfig.iconURL || remoteConfig.icon || remoteConfig.avatar || remoteConfig.chatIcon || remoteConfig.launcherIcon || fallbackThemeConfig.iconUrl || fallbackThemeConfig.icon || "",
-      showBranding: toBoolean(remoteConfig.showBranding, toBoolean(fallbackThemeConfig.showBranding, false)),
-      brandingText: remoteConfig.brandingName || remoteConfig.brandingText || remoteConfig.brandName || fallbackThemeConfig.brandingName || fallbackThemeConfig.brandingText || fallbackThemeConfig.brandName || "Chatflow AI",
-      brandingUrl: remoteConfig.brandingUrl || remoteConfig.brandUrl || fallbackThemeConfig.brandingUrl || fallbackThemeConfig.brandUrl || "https://chatflowai.io",
-      autoOpen: toBoolean(remoteConfig.autoOpen, toBoolean(fallbackThemeConfig.autoOpen, false)),
-      theme: (remoteConfig.theme || fallbackThemeConfig.theme || "light").toLowerCase() === "dark" ? "dark" : "light",
-      fontFamily: remoteConfig.fontFamily || fallbackThemeConfig.fontFamily || "Inter, Arial, sans-serif",
-      fontSize: normalizeFontSize(remoteConfig.fontSize || fallbackThemeConfig.fontSize, "14px"),
-      position: position === "left" ? "left" : "right",
-      botId: normalizeIdentifier(getFirstValue(remoteConfig, ["botId", "botID", "bot_id", "bot"]) || widgetState.config.botId),
-      chatId: normalizeIdentifier(getFirstValue(remoteConfig, ["chatID", "chatId", "chat_id", "chat"]) || widgetState.config.chatId),
-      userId: remoteConfig.userId || remoteConfig.user_id || remoteConfig.userid || remoteConfig.userID || remoteConfig.user || widgetState.config.userId || "",
-      aiModel: remoteConfig.aiModel || remoteConfig.ai_model || remoteConfig.aiModelName || remoteConfig.model || widgetState.config.aiModel || "gpt-4o-mini",
-      chatbotToken: remoteConfig.chatbotToken || remoteConfig.chatbot_token || remoteConfig.widgetToken || remoteConfig.token || widgetState.config.chatbotToken || "",
-      streamApiUrl: remoteConfig.streamApiUrl || remoteConfig.stream_api_url || remoteConfig.streamURL || remoteConfig.streamUrl || remoteConfig.chatApiUrl || remoteConfig.chat_api_url || widgetState.config.streamApiUrl || STREAM_CHAT_URL,
-      saveChatPath: remoteConfig.saveChatPath || remoteConfig.save_chat_path || remoteConfig.saveChatEndpoint || remoteConfig.savePath || widgetState.config.saveChatPath || API_PATHS.saveChat,
-      bubbleVersion: widgetState.config.bubbleVersion || (widgetState.config.isTestVersion ? "test" : "live"),
-      isTestVersion: isTestVersionValue(widgetState.config.isTestVersion)
-    };
-  }
-
-  function buildWidgetMarkup(root, chatPosition) {
-    root.innerHTML = ['<style>', ':host{all:initial}.widget-root{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom));right:20px;z-index:' + MAX_Z_INDEX + ';display:flex;flex-direction:column;align-items:flex-end;gap:14px;font-family:var(--chatbot-font-family,Inter,Arial,sans-serif);font-size:var(--chatbot-font-size,14px);color:#111827;pointer-events:auto}.widget-root[data-position="left"]{left:20px;right:auto;align-items:flex-start}.widget-root[data-theme="dark"]{color:#f9fafb}.launcher{padding:0;width:60px;height:60px;border:none;border-radius:999px;overflow:hidden;cursor:pointer;color:#fff;background-color:var(--chatbot-primary,#2563eb);box-shadow:0 10px 24px rgba(15,23,42,.18);display:inline-flex;align-items:center;justify-content:center;pointer-events:auto}.panel{width:min(400px,calc(100vw - 32px));height:min(680px,calc(100vh - 116px));max-height:calc(100vh - 116px);border-radius:24px;overflow:hidden;background:#f5f5f5;box-shadow:0 14px 36px rgba(15,23,42,.16);border:1px solid rgba(229,231,235,.9);display:none;pointer-events:auto}.widget-root[data-open="true"] .panel{display:flex;flex-direction:column}@media(max-width:767px){.widget-root{right:16px;bottom:16px}.widget-root[data-open="true"] .panel{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;max-height:100vh;border-radius:0;z-index:999999}.widget-root[data-open="true"] .launcher{display:none}}.widget-root[data-theme="dark"] .panel{background:#111827;border-color:rgba(55,65,81,.9)}.chat-container{flex:1;display:flex;flex-direction:column;height:100%;width:100%;background:#f5f5f5;pointer-events:auto;min-height:0;overflow:hidden}.widget-root[data-theme="dark"] .chat-container{background:#111827}.header{padding:16px;font-weight:600;color:#fff;background:var(--chatbot-primary,#2563eb);display:flex;align-items:center;justify-content:space-between;gap:12px}.header-main{display:flex;align-items:center;gap:10px;min-width:0}.header-avatar{width:28px;height:28px;border-radius:999px;background-color:rgba(255,255,255,.18);background-repeat:no-repeat;background-position:center;background-size:cover;flex:0 0 auto}.header-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.header-actions{display:flex;align-items:center;gap:8px}.header-btn{background:transparent;border:none;color:inherit;cursor:pointer;font-size:18px;line-height:1;padding:0}.messages{flex:1;min-height:0;overflow-y:auto;padding:20px 16px 12px;background:#f5f5f5;scrollbar-width:thin;scrollbar-color:var(--chatbot-primary,#2563eb) transparent}.widget-root[data-theme="dark"] .messages{background:#111827}.message{margin-bottom:8px;display:flex;flex-direction:column;max-width:100%}.user{align-items:flex-end}.bot{max-width:78%;border-radius:14px;align-items:flex-start}.bubble-msg{max-width:78%;padding:12px 14px;border-radius:14px;font-size:1em;line-height:1.5;word-break:break-word;white-space:normal}.bubble-msg p{margin:4px 0}.bubble-msg a{color:#2563eb;text-decoration:underline}.bot-cta{margin-top:8px;padding:8px 12px;border-radius:999px;border:none;cursor:pointer;font-size:.85em;background:var(--chatbot-primary,#2563eb);color:#fff}.starter-prompts{padding:8px 16px;display:flex;flex-wrap:wrap;flex-shrink:0;gap:8px;background:#f5f5f5;overflow-y:auto;max-height:160px}.starter-prompts:empty{display:none}.starter-prompts[data-hidden="true"]{display:none}.prompt{display:inline-flex;white-space:nowrap;align-items:center;width:fit-content;max-width:85%;background:#fff;border:1px solid #e5e7eb;padding:8px 12px;border-radius:999px;font-size:.75em;cursor:pointer;color:inherit;text-align:left}.input-area{flex-shrink:0;padding:12px;display:flex;background:#fff;border-top:1px solid #eee}.widget-root[data-theme="dark"] .input-area{background:#0f172a;border-top-color:#1f2937}.chat-input{flex:1;padding:12px 14px;border-radius:999px;border:1px solid #ddd;outline:none;font-size:1em;font-family:inherit;background:#fff;color:#111827}.send-btn{margin-left:8px;width:40px;height:40px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:16px;background:var(--chatbot-primary,#2563eb)}.send-btn:disabled{opacity:.7;cursor:not-allowed}.typing{display:inline-flex;gap:4px}.typing span{width:6px;height:6px;background:#999;border-radius:50%;animation:bounce 1.4s infinite ease-in-out both}.typing span:nth-child(1){animation-delay:-.32s}.typing span:nth-child(2){animation-delay:-.16s}.branding{padding:10px 16px 12px;background:#fff;border-top:1px solid #eee;text-align:center;display:none}.branding[data-visible="true"]{display:block}.branding-link{font-size:.85em;color:#6b7280;text-decoration:none}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}@keyframes bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}', '</style>', '<div class="widget-root" data-position="' + (chatPosition === "left" ? "left" : "right") + '" data-open="false" data-theme="light"><div class="panel"><div class="chat-container"><div class="header"><div class="header-main"><div class="header-avatar" data-role="header-avatar"></div><div class="header-title" data-role="header-title">Chat Assistant</div></div><div class="header-actions"><button class="header-btn" data-role="clear-btn">↻</button><button class="header-btn" data-role="close-btn">×</button></div></div><div class="messages" data-role="messages"></div><div class="starter-prompts" data-role="prompts"></div><div class="input-area"><label class="sr-only" for="chatbot-widget-input">Message</label><input id="chatbot-widget-input" class="chat-input" data-role="input" placeholder="Message..."/><button class="send-btn" data-role="send-btn">➤</button></div><div class="branding" data-role="branding" data-visible="false"><a class="branding-link" data-role="branding-link" href="#" target="_blank" rel="noopener noreferrer"></a></div></div></div><button class="launcher" data-role="launcher"></button></div>'].join("");
-  }
-
-  function createWidgetState(host, root, config) {
-    var defaults = normalizeRemoteConfig({ config: config }, {});
-    return { host: host, root: root, config: config, sessionId: getOrCreateSessionId(getConversationStorageId(config)), history: loadStoredHistory(getConversationStorageId(config)), uiState: (function(){ var ui = loadStoredUiState(getConversationStorageId(config)); ui.open = false; return ui; })(), elements: { widgetRoot: root.querySelector(".widget-root"), panel: root.querySelector(".panel"), launcher: root.querySelector('[data-role="launcher"]'), closeBtn: root.querySelector('[data-role="close-btn"]'), clearBtn: root.querySelector('[data-role="clear-btn"]'), headerTitle: root.querySelector('[data-role="header-title"]'), headerAvatar: root.querySelector('[data-role="header-avatar"]'), messages: root.querySelector('[data-role="messages"]'), prompts: root.querySelector('[data-role="prompts"]'), input: root.querySelector('[data-role="input"]'), sendBtn: root.querySelector('[data-role="send-btn"]'), branding: root.querySelector('[data-role="branding"]'), brandingLink: root.querySelector('[data-role="branding-link"]') }, title: defaults.name, primaryColor: defaults.primaryColor, welcomeMessage: defaults.welcomeMessage, starterPrompts: defaults.starterPrompts, placeholder: defaults.inputPlaceholder, iconUrl: defaults.iconUrl, showBranding: defaults.showBranding, brandingText: defaults.brandingText, brandingUrl: defaults.brandingUrl, autoOpen: defaults.autoOpen, theme: defaults.theme, fontFamily: defaults.fontFamily, fontSize: defaults.fontSize, isLoading: false, configLoaded: false, typingTimer: null };
-  }
-
-  function ensureWidgetHost(config) {
-    if (!window[HOST_STATE]) window[HOST_STATE] = {};
-    if (window[HOST_STATE][config.botId]) return window[HOST_STATE][config.botId];
-    var existingHost = document.getElementById("chatbot-widget-host-" + config.botId);
-    var host = existingHost || document.createElement("div");
-    if (!existingHost) { host.id = "chatbot-widget-host-" + config.botId; host.setAttribute("data-chatbot-widget-host", config.botId); host.style.all = "initial"; host.style.position = "fixed"; host.style.inset = "0"; host.style.pointerEvents = "none"; host.style.zIndex = String(MAX_Z_INDEX); document.documentElement.appendChild(host); }
-    var root = host.shadowRoot || host.attachShadow({ mode: "open" });
-    if (!root.querySelector(".widget-root")) buildWidgetMarkup(root, config.chatPosition);
-    var widgetState = createWidgetState(host, root, config);
-    window[HOST_STATE][config.botId] = widgetState;
-    return widgetState;
-  }
-
+  function requestWithTimeout(url, options, timeoutMs) { var controller = window.AbortController ? new AbortController() : null; var requestOptions = options || {}; var timeoutId = null; if (controller) requestOptions.signal = controller.signal; return new Promise(function (resolve, reject) { timeoutId = window.setTimeout(function () { if (controller) controller.abort(); reject(new Error("Request timed out")); }, timeoutMs); fetch(url, requestOptions).then(function (response) { window.clearTimeout(timeoutId); resolve(response); }).catch(function (error) { window.clearTimeout(timeoutId); reject(error); }); }); }
+  function ensureHighZIndex(botId) { var styleId = "chatbot-widget-zindex-" + botId; if (document.getElementById(styleId)) return; var style = document.createElement("style"); style.id = styleId; style.textContent = '[data-chatbot-widget-host="' + botId + '"] { z-index: ' + MAX_Z_INDEX + ' !important; } [data-chatbot-widget-host="' + botId + '"] * { box-sizing: border-box; }'; (document.head || document.documentElement).appendChild(style); }
+  function getWidgetConfig(scriptTag) { return { botId: normalizeIdentifier(scriptTag.getAttribute("data-bot-id")), chatId: normalizeIdentifier(scriptTag.getAttribute("data-chat-id") || scriptTag.getAttribute("data-chatid") || scriptTag.getAttribute("data-chat-i-d")), apiHost: scriptTag.getAttribute("data-api-host") || DEFAULT_API_HOST, bubbleVersion: getBubbleVersionFromScript(scriptTag), isTestVersion: isTestVersionValue(getBubbleVersionFromScript(scriptTag)), chatPosition: scriptTag.getAttribute("data-position") || "right", userId: "", aiModel: "gpt-4o-mini", chatbotToken: normalizeIdentifier(scriptTag.getAttribute("data-chatbot-token") || scriptTag.getAttribute("data-token") || scriptTag.getAttribute("data-widget-token")), streamApiUrl: scriptTag.getAttribute("data-stream-api-url") || STREAM_CHAT_URL, saveChatPath: API_PATHS.saveChat, themeConfig: parseJson(scriptTag.getAttribute("data-theme-config"), {}) }; }
+  function normalizeRemoteConfig(widgetState, remoteConfig) { var fallbackThemeConfig = widgetState.config.themeConfig || {}; var position = remoteConfig.position || widgetState.config.chatPosition || fallbackThemeConfig.position || "right"; var prompts = remoteConfig.starterPrompts; if (typeof prompts === "string") prompts = parseJson(prompts, prompts); if (!Array.isArray(prompts)) prompts = Array.isArray(fallbackThemeConfig.starterPrompts) ? fallbackThemeConfig.starterPrompts : []; return { name: remoteConfig.name || fallbackThemeConfig.title || "Chat Assistant", primaryColor: remoteConfig.primaryColor || fallbackThemeConfig.primaryColor || "#2563eb", welcomeMessage: remoteConfig.welcomeMessage || fallbackThemeConfig.welcomeMessage || "", starterPrompts: prompts, inputPlaceholder: remoteConfig.inputPlaceholder || fallbackThemeConfig.inputPlaceholder || "Message...", iconUrl: remoteConfig.iconUrl || remoteConfig.iconURL || remoteConfig.icon || remoteConfig.avatar || remoteConfig.chatIcon || remoteConfig.launcherIcon || fallbackThemeConfig.iconUrl || fallbackThemeConfig.icon || "", showBranding: toBoolean(remoteConfig.showBranding, toBoolean(fallbackThemeConfig.showBranding, false)), brandingText: remoteConfig.brandingName || remoteConfig.brandingText || remoteConfig.brandName || fallbackThemeConfig.brandingName || fallbackThemeConfig.brandingText || fallbackThemeConfig.brandName || "Chatflow AI", brandingUrl: remoteConfig.brandingUrl || remoteConfig.brandUrl || fallbackThemeConfig.brandingUrl || fallbackThemeConfig.brandUrl || "https://chatflowai.io", autoOpen: toBoolean(remoteConfig.autoOpen, toBoolean(fallbackThemeConfig.autoOpen, false)), theme: (remoteConfig.theme || fallbackThemeConfig.theme || "light").toLowerCase() === "dark" ? "dark" : "light", fontFamily: remoteConfig.fontFamily || fallbackThemeConfig.fontFamily || "Inter, Arial, sans-serif", fontSize: normalizeFontSize(remoteConfig.fontSize || fallbackThemeConfig.fontSize, "14px"), position: position === "left" ? "left" : "right", botId: normalizeIdentifier(getFirstValue(remoteConfig, ["botId", "botID", "bot_id", "bot"]) || widgetState.config.botId), chatId: normalizeIdentifier(getFirstValue(remoteConfig, ["chatID", "chatId", "chat_id", "chat"]) || widgetState.config.chatId), userId: remoteConfig.userId || remoteConfig.user_id || remoteConfig.userid || remoteConfig.userID || remoteConfig.user || widgetState.config.userId || "", aiModel: remoteConfig.aiModel || remoteConfig.ai_model || remoteConfig.aiModelName || remoteConfig.model || widgetState.config.aiModel || "gpt-4o-mini", chatbotToken: remoteConfig.chatbotToken || remoteConfig.chatbot_token || remoteConfig.widgetToken || remoteConfig.token || widgetState.config.chatbotToken || "", streamApiUrl: remoteConfig.streamApiUrl || remoteConfig.stream_api_url || remoteConfig.streamURL || remoteConfig.streamUrl || remoteConfig.chatApiUrl || remoteConfig.chat_api_url || widgetState.config.streamApiUrl || STREAM_CHAT_URL, saveChatPath: remoteConfig.saveChatPath || remoteConfig.save_chat_path || remoteConfig.saveChatEndpoint || remoteConfig.savePath || widgetState.config.saveChatPath || API_PATHS.saveChat, bubbleVersion: widgetState.config.bubbleVersion || (widgetState.config.isTestVersion ? "test" : "live"), isTestVersion: isTestVersionValue(widgetState.config.isTestVersion) }; }
+  function buildWidgetMarkup(root, chatPosition) { root.innerHTML = ['<style>', ':host{all:initial}.widget-root{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom));right:20px;z-index:' + MAX_Z_INDEX + ';display:flex;flex-direction:column;align-items:flex-end;gap:14px;font-family:var(--chatbot-font-family,Inter,Arial,sans-serif);font-size:var(--chatbot-font-size,14px);color:#111827;pointer-events:auto}.widget-root[data-position="left"]{left:20px;right:auto;align-items:flex-start}.widget-root[data-theme="dark"]{color:#f9fafb}.launcher{padding:0;width:60px;height:60px;border:none;border-radius:999px;overflow:hidden;cursor:pointer;color:#fff;background-color:var(--chatbot-primary,#2563eb);box-shadow:0 10px 24px rgba(15,23,42,.18);display:inline-flex;align-items:center;justify-content:center;pointer-events:auto}.panel{width:min(400px,calc(100vw - 32px));height:min(680px,calc(100vh - 116px));max-height:calc(100vh - 116px);border-radius:24px;overflow:hidden;background:#f5f5f5;box-shadow:0 14px 36px rgba(15,23,42,.16);border:1px solid rgba(229,231,235,.9);display:none;pointer-events:auto}.widget-root[data-open="true"] .panel{display:flex;flex-direction:column}@media(max-width:767px){.widget-root{right:16px;bottom:16px}.widget-root[data-open="true"] .panel{position:fixed;top:0;left:0;right:0;bottom:0;width:100vw;height:100vh;max-height:100vh;border-radius:0;z-index:999999}.widget-root[data-open="true"] .launcher{display:none}}.widget-root[data-theme="dark"] .panel{background:#111827;border-color:rgba(55,65,81,.9)}.chat-container{flex:1;display:flex;flex-direction:column;height:100%;width:100%;background:#f5f5f5;pointer-events:auto;min-height:0;overflow:hidden}.widget-root[data-theme="dark"] .chat-container{background:#111827}.header{padding:16px;font-weight:600;color:#fff;background:var(--chatbot-primary,#2563eb);display:flex;align-items:center;justify-content:space-between;gap:12px}.header-main{display:flex;align-items:center;gap:10px;min-width:0}.header-avatar{width:28px;height:28px;border-radius:999px;background-color:rgba(255,255,255,.18);background-repeat:no-repeat;background-position:center;background-size:cover;flex:0 0 auto}.header-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.header-actions{display:flex;align-items:center;gap:8px}.header-btn{background:transparent;border:none;color:inherit;cursor:pointer;font-size:18px;line-height:1;padding:0}.messages{flex:1;min-height:0;overflow-y:auto;padding:20px 16px 12px;background:#f5f5f5;scrollbar-width:thin;scrollbar-color:var(--chatbot-primary,#2563eb) transparent}.widget-root[data-theme="dark"] .messages{background:#111827}.message{margin-bottom:8px;display:flex;flex-direction:column;max-width:100%}.user{align-items:flex-end}.bot{max-width:78%;border-radius:14px;align-items:flex-start}.bubble-msg{max-width:78%;padding:12px 14px;border-radius:14px;font-size:1em;line-height:1.5;word-break:break-word;white-space:normal}.bubble-msg p{margin:4px 0}.bubble-msg a{color:#2563eb;text-decoration:underline}.bot-cta{margin-top:8px;padding:8px 12px;border-radius:999px;border:none;cursor:pointer;font-size:.85em;background:var(--chatbot-primary,#2563eb);color:#fff}.starter-prompts{padding:8px 16px;display:flex;flex-wrap:wrap;flex-shrink:0;gap:8px;background:#f5f5f5;overflow-y:auto;max-height:160px}.starter-prompts:empty{display:none}.starter-prompts[data-hidden="true"]{display:none}.prompt{display:inline-flex;white-space:nowrap;align-items:center;width:fit-content;max-width:85%;background:#fff;border:1px solid #e5e7eb;padding:8px 12px;border-radius:999px;font-size:.75em;cursor:pointer;color:inherit;text-align:left}.input-area{flex-shrink:0;padding:12px;display:flex;background:#fff;border-top:1px solid #eee}.widget-root[data-theme="dark"] .input-area{background:#0f172a;border-top-color:#1f2937}.chat-input{flex:1;padding:12px 14px;border-radius:999px;border:1px solid #ddd;outline:none;font-size:1em;font-family:inherit;background:#fff;color:#111827}.send-btn{margin-left:8px;width:40px;height:40px;border-radius:50%;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:16px;background:var(--chatbot-primary,#2563eb)}.send-btn:disabled{opacity:.7;cursor:not-allowed}.typing{display:inline-flex;gap:4px}.typing span{width:6px;height:6px;background:#999;border-radius:50%;animation:bounce 1.4s infinite ease-in-out both}.typing span:nth-child(1){animation-delay:-.32s}.typing span:nth-child(2){animation-delay:-.16s}.branding{padding:10px 16px 12px;background:#fff;border-top:1px solid #eee;text-align:center;display:none}.branding[data-visible="true"]{display:block}.branding-link{font-size:.85em;color:#6b7280;text-decoration:none}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}@keyframes bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}', '</style>', '<div class="widget-root" data-position="' + (chatPosition === "left" ? "left" : "right") + '" data-open="false" data-theme="light"><div class="panel"><div class="chat-container"><div class="header"><div class="header-main"><div class="header-avatar" data-role="header-avatar"></div><div class="header-title" data-role="header-title">Chat Assistant</div></div><div class="header-actions"><button class="header-btn" data-role="clear-btn">↻</button><button class="header-btn" data-role="close-btn">×</button></div></div><div class="messages" data-role="messages"></div><div class="starter-prompts" data-role="prompts"></div><div class="input-area"><label class="sr-only" for="chatbot-widget-input">Message</label><input id="chatbot-widget-input" class="chat-input" data-role="input" placeholder="Message..."/><button class="send-btn" data-role="send-btn">➤</button></div><div class="branding" data-role="branding" data-visible="false"><a class="branding-link" data-role="branding-link" href="#" target="_blank" rel="noopener noreferrer"></a></div></div></div><button class="launcher" data-role="launcher"></button></div>'].join(""); }
+  function createWidgetState(host, root, config) { var defaults = normalizeRemoteConfig({ config: config }, {}); return { host: host, root: root, config: config, sessionId: getOrCreateSessionId(getConversationStorageId(config)), history: loadStoredHistory(getConversationStorageId(config)), uiState: (function(){ var ui = loadStoredUiState(getConversationStorageId(config)); ui.open = false; return ui; })(), elements: { widgetRoot: root.querySelector(".widget-root"), panel: root.querySelector(".panel"), launcher: root.querySelector('[data-role="launcher"]'), closeBtn: root.querySelector('[data-role="close-btn"]'), clearBtn: root.querySelector('[data-role="clear-btn"]'), headerTitle: root.querySelector('[data-role="header-title"]'), headerAvatar: root.querySelector('[data-role="header-avatar"]'), messages: root.querySelector('[data-role="messages"]'), prompts: root.querySelector('[data-role="prompts"]'), input: root.querySelector('[data-role="input"]'), sendBtn: root.querySelector('[data-role="send-btn"]'), branding: root.querySelector('[data-role="branding"]'), brandingLink: root.querySelector('[data-role="branding-link"]') }, title: defaults.name, primaryColor: defaults.primaryColor, welcomeMessage: defaults.welcomeMessage, starterPrompts: defaults.starterPrompts, placeholder: defaults.inputPlaceholder, iconUrl: defaults.iconUrl, showBranding: defaults.showBranding, brandingText: defaults.brandingText, brandingUrl: defaults.brandingUrl, autoOpen: defaults.autoOpen, theme: defaults.theme, fontFamily: defaults.fontFamily, fontSize: defaults.fontSize, isLoading: false, configLoaded: false, typingTimer: null }; }
+  function ensureWidgetHost(config) { if (!window[HOST_STATE]) window[HOST_STATE] = {}; if (window[HOST_STATE][config.botId]) return window[HOST_STATE][config.botId]; var existingHost = document.getElementById("chatbot-widget-host-" + config.botId); var host = existingHost || document.createElement("div"); if (!existingHost) { host.id = "chatbot-widget-host-" + config.botId; host.setAttribute("data-chatbot-widget-host", config.botId); host.style.all = "initial"; host.style.position = "fixed"; host.style.inset = "0"; host.style.pointerEvents = "none"; host.style.zIndex = String(MAX_Z_INDEX); document.documentElement.appendChild(host); } var root = host.shadowRoot || host.attachShadow({ mode: "open" }); if (!root.querySelector(".widget-root")) buildWidgetMarkup(root, config.chatPosition); var widgetState = createWidgetState(host, root, config); window[HOST_STATE][config.botId] = widgetState; return widgetState; }
   function ensureConversationStartedState(widgetState) { widgetState.uiState.hasStartedConversation = hasUserMessages(widgetState.history); saveStoredUiState(getConversationStorageId(widgetState.config), widgetState.uiState); }
   function shouldShowStarterPrompts(widgetState) { return !widgetState.uiState.hasStartedConversation; }
   function syncLauncherState(widgetState) { var isOpen = widgetState.elements.widgetRoot.getAttribute("data-open") === "true"; if (isOpen) { widgetState.elements.launcher.style.background = widgetState.primaryColor || "#2563eb"; widgetState.elements.launcher.innerHTML = "⌄"; widgetState.elements.launcher.style.fontSize = "28px"; return; } var launcherIcon = normalizeIconUrl(widgetState.iconUrl || getDefaultLauncherIcon(), widgetState.config.apiHost); widgetState.elements.launcher.style.background = "transparent"; widgetState.elements.launcher.innerHTML = launcherIcon ? '<img src="' + launcherIcon.replace(/"/g, "%22") + '" alt="" aria-hidden="true" style="width:100%;height:100%;object-fit:cover;border-radius:999px;display:block;margin:auto;" />' : ""; widgetState.elements.launcher.style.fontSize = "0"; }
   function setWidgetPosition(widgetState, position) { var resolvedPosition = position === "left" ? "left" : "right"; widgetState.config.chatPosition = resolvedPosition; widgetState.elements.widgetRoot.setAttribute("data-position", resolvedPosition); }
   function setWidgetOpen(widgetState, isOpen, persistState) { widgetState.elements.widgetRoot.setAttribute("data-open", isOpen ? "true" : "false"); if (persistState !== false) { widgetState.uiState.open = !!isOpen; saveStoredUiState(getConversationStorageId(widgetState.config), widgetState.uiState); } syncLauncherState(widgetState); if (isOpen) setTimeout(function(){ widgetState.elements.input.focus(); widgetState.elements.messages.scrollTop = widgetState.elements.messages.scrollHeight; }, 0); }
-
-  function updateBranding(widgetState) {
-    widgetState.host.style.setProperty("--chatbot-primary", widgetState.primaryColor || "#2563eb"); widgetState.host.style.setProperty("--chatbot-font-family", widgetState.fontFamily || "Inter, Arial, sans-serif"); widgetState.host.style.setProperty("--chatbot-font-size", widgetState.fontSize || "14px");
-    widgetState.elements.headerTitle.textContent = widgetState.title || "Chat Assistant"; widgetState.elements.sendBtn.style.background = widgetState.primaryColor; widgetState.elements.widgetRoot.setAttribute("data-theme", widgetState.theme === "dark" ? "dark" : "light"); setWidgetPosition(widgetState, widgetState.config.chatPosition); syncLauncherState(widgetState); widgetState.elements.headerAvatar.style.backgroundImage = getCssBackgroundImage(widgetState.iconUrl || getDefaultLauncherIcon(), widgetState.config.apiHost);
-    var show = !!widgetState.showBranding && !!widgetState.brandingText && !!widgetState.brandingUrl; widgetState.elements.branding.setAttribute("data-visible", show ? "true" : "false"); widgetState.elements.brandingLink.textContent = show ? widgetState.brandingText : ""; widgetState.elements.brandingLink.href = show ? widgetState.brandingUrl : "#"; widgetState.elements.input.placeholder = widgetState.placeholder || "Message...";
-  }
-
+  function updateBranding(widgetState) { widgetState.host.style.setProperty("--chatbot-primary", widgetState.primaryColor || "#2563eb"); widgetState.host.style.setProperty("--chatbot-font-family", widgetState.fontFamily || "Inter, Arial, sans-serif"); widgetState.host.style.setProperty("--chatbot-font-size", widgetState.fontSize || "14px"); widgetState.elements.headerTitle.textContent = widgetState.title || "Chat Assistant"; widgetState.elements.sendBtn.style.background = widgetState.primaryColor; widgetState.elements.widgetRoot.setAttribute("data-theme", widgetState.theme === "dark" ? "dark" : "light"); setWidgetPosition(widgetState, widgetState.config.chatPosition); syncLauncherState(widgetState); widgetState.elements.headerAvatar.style.backgroundImage = getCssBackgroundImage(widgetState.iconUrl || getDefaultLauncherIcon(), widgetState.config.apiHost); var show = !!widgetState.showBranding && !!widgetState.brandingText && !!widgetState.brandingUrl; widgetState.elements.branding.setAttribute("data-visible", show ? "true" : "false"); widgetState.elements.brandingLink.textContent = show ? widgetState.brandingText : ""; widgetState.elements.brandingLink.href = show ? widgetState.brandingUrl : "#"; widgetState.elements.input.placeholder = widgetState.placeholder || "Message..."; }
   function submitPrompt(widgetState, text) { var t = String(text || "").trim(); if (!t || widgetState.isLoading) return; widgetState.elements.input.value = t; sendMessage(widgetState, t); }
   function renderPrompts(widgetState, list) { var c = widgetState.elements.prompts; c.innerHTML = ""; c.setAttribute("data-hidden", shouldShowStarterPrompts(widgetState) ? "false" : "true"); if (!shouldShowStarterPrompts(widgetState)) return; if (typeof list === "string") list = parseJson(list, []); if (!Array.isArray(list)) return; for (var i=0;i<list.length;i++){ if(!list[i]) continue; var btn=document.createElement("button"); btn.className="prompt"; btn.type="button"; btn.textContent=list[i]; btn.addEventListener("click", function(e){ e.preventDefault(); submitPrompt(widgetState, e.currentTarget.textContent); }); c.appendChild(btn); } }
   function createTypingMarkup() { return '<div class="typing"><span></span><span></span><span></span></div>'; }
   function scrollMessagesToBottom(widgetState) { widgetState.elements.messages.scrollTop = widgetState.elements.messages.scrollHeight; }
-
-  function appendMessage(widgetState, message) {
-    var normalized = { role: message.role === "user" ? "user" : "bot", text: String(message.text || "") };
-    if (!message.skipPersist) { widgetState.history.push({ role: normalized.role, text: normalized.text }); if (normalized.role === "user") { widgetState.uiState.hasStartedConversation = true; saveStoredUiState(getConversationStorageId(widgetState.config), widgetState.uiState); renderPrompts(widgetState, widgetState.starterPrompts); } persistHistory(widgetState); }
-    var msg = document.createElement("div"); msg.className = "message " + normalized.role; var bubble = document.createElement("div"); bubble.className = "bubble-msg";
-    if (normalized.role === "user") { bubble.style.background = widgetState.primaryColor; bubble.style.color = "white"; bubble.style.borderBottomRightRadius = "6px"; bubble.textContent = normalized.text; } else { bubble.style.background = widgetState.theme === "dark" ? "#1f2937" : "white"; bubble.style.color = widgetState.theme === "dark" ? "#f9fafb" : "#111"; bubble.style.borderBottomLeftRadius = "6px"; bubble.innerHTML = renderMarkdown(normalized.text); }
-    msg.appendChild(bubble); widgetState.elements.messages.appendChild(msg); scrollMessagesToBottom(widgetState); return bubble;
-  }
-
+  function appendMessage(widgetState, message) { var normalized = { role: message.role === "user" ? "user" : "bot", text: String(message.text || "") }; if (!message.skipPersist) { widgetState.history.push({ role: normalized.role, text: normalized.text }); if (normalized.role === "user") { widgetState.uiState.hasStartedConversation = true; saveStoredUiState(getConversationStorageId(widgetState.config), widgetState.uiState); renderPrompts(widgetState, widgetState.starterPrompts); } persistHistory(widgetState); } var msg = document.createElement("div"); msg.className = "message " + normalized.role; var bubble = document.createElement("div"); bubble.className = "bubble-msg"; if (normalized.role === "user") { bubble.style.background = widgetState.primaryColor; bubble.style.color = "white"; bubble.style.borderBottomRightRadius = "6px"; bubble.textContent = normalized.text; } else { bubble.style.background = widgetState.theme === "dark" ? "#1f2937" : "white"; bubble.style.color = widgetState.theme === "dark" ? "#f9fafb" : "#111"; bubble.style.borderBottomLeftRadius = "6px"; bubble.innerHTML = renderMarkdown(normalized.text); } msg.appendChild(bubble); widgetState.elements.messages.appendChild(msg); scrollMessagesToBottom(widgetState); return bubble; }
   function typeWriter(widgetState, element, text) { element.innerHTML = renderMarkdown(text); scrollMessagesToBottom(widgetState); }
   function restoreHistory(widgetState) { widgetState.elements.messages.innerHTML = ""; for (var i=0;i<widgetState.history.length;i++) appendMessage(widgetState, { role: widgetState.history[i].role, text: widgetState.history[i].text, skipPersist: true }); }
   function resetConversation(widgetState) { widgetState.history=[]; widgetState.uiState.hasStartedConversation=false; saveStoredUiState(getConversationStorageId(widgetState.config), widgetState.uiState); persistHistory(widgetState); widgetState.elements.messages.innerHTML=""; if(widgetState.welcomeMessage) appendMessage(widgetState,{role:"bot",text:widgetState.welcomeMessage,skipPersist:true}); renderPrompts(widgetState, widgetState.starterPrompts); }
   function normalizeConfigResponse(data) { return (data && data.response) || data || {}; }
-
-  function applyRemoteConfig(widgetState, remoteConfig, options) {
-    var normalized = normalizeRemoteConfig(widgetState, remoteConfig), opts = options || {};
-    widgetState.title=normalized.name; widgetState.primaryColor=normalized.primaryColor; widgetState.welcomeMessage=normalized.welcomeMessage; widgetState.starterPrompts=normalized.starterPrompts; widgetState.placeholder=normalized.inputPlaceholder; widgetState.iconUrl=normalized.iconUrl; widgetState.showBranding=normalized.showBranding; widgetState.brandingText=normalized.brandingText; widgetState.brandingUrl=normalized.brandingUrl; widgetState.autoOpen=normalized.autoOpen; widgetState.theme=normalized.theme; widgetState.fontFamily=normalized.fontFamily; widgetState.fontSize=normalized.fontSize; widgetState.config.chatPosition=normalized.position; widgetState.config.botId=normalized.botId; widgetState.config.chatId=normalized.chatId; widgetState.config.userId=normalized.userId; widgetState.config.aiModel=normalized.aiModel; widgetState.config.chatbotToken=normalized.chatbotToken; widgetState.config.streamApiUrl=normalized.streamApiUrl; widgetState.config.saveChatPath=normalized.saveChatPath; widgetState.config.bubbleVersion=normalized.bubbleVersion; widgetState.config.isTestVersion=normalized.isTestVersion; widgetState.configLoaded=!!opts.markAsLoaded;
-    ensureConversationStartedState(widgetState); updateBranding(widgetState); restoreHistory(widgetState); renderPrompts(widgetState, widgetState.starterPrompts); if(!widgetState.history.length && widgetState.welcomeMessage) appendMessage(widgetState,{role:"bot",text:widgetState.welcomeMessage}); if(widgetState.autoOpen) setWidgetOpen(widgetState,true); else setWidgetOpen(widgetState,false,false);
-  }
-
-  function loadRemoteConfig(widgetState) {
-    var configId = normalizeIdentifier(widgetState.config.botId || getChatIdForRequests(widgetState));
-    var url = getApiUrl(widgetState.config, API_PATHS.config + encodeURIComponent(configId));
-    return requestWithTimeout(url, { method: "GET" }, REQUEST_TIMEOUT).then(function(response){ if(!response.ok) throw new Error("Config request failed"); return response.json(); }).then(function(data){ applyRemoteConfig(widgetState, normalizeConfigResponse(data), {markAsLoaded:true}); }).catch(function(){ applyRemoteConfig(widgetState, {}, {markAsLoaded:true}); }).then(function(){ setLoadingState(widgetState,false); });
-  }
-
+  function applyRemoteConfig(widgetState, remoteConfig, options) { var normalized = normalizeRemoteConfig(widgetState, remoteConfig), opts = options || {}; widgetState.title=normalized.name; widgetState.primaryColor=normalized.primaryColor; widgetState.welcomeMessage=normalized.welcomeMessage; widgetState.starterPrompts=normalized.starterPrompts; widgetState.placeholder=normalized.inputPlaceholder; widgetState.iconUrl=normalized.iconUrl; widgetState.showBranding=normalized.showBranding; widgetState.brandingText=normalized.brandingText; widgetState.brandingUrl=normalized.brandingUrl; widgetState.autoOpen=normalized.autoOpen; widgetState.theme=normalized.theme; widgetState.fontFamily=normalized.fontFamily; widgetState.fontSize=normalized.fontSize; widgetState.config.chatPosition=normalized.position; widgetState.config.botId=normalized.botId; widgetState.config.chatId=normalized.chatId; widgetState.config.userId=normalized.userId; widgetState.config.aiModel=normalized.aiModel; widgetState.config.chatbotToken=normalized.chatbotToken; widgetState.config.streamApiUrl=normalized.streamApiUrl; widgetState.config.saveChatPath=normalized.saveChatPath; widgetState.config.bubbleVersion=normalized.bubbleVersion; widgetState.config.isTestVersion=normalized.isTestVersion; widgetState.configLoaded=!!opts.markAsLoaded; ensureConversationStartedState(widgetState); updateBranding(widgetState); restoreHistory(widgetState); renderPrompts(widgetState, widgetState.starterPrompts); if(!widgetState.history.length && widgetState.welcomeMessage) appendMessage(widgetState,{role:"bot",text:widgetState.welcomeMessage}); if(widgetState.autoOpen) setWidgetOpen(widgetState,true); else setWidgetOpen(widgetState,false,false); }
+  function loadRemoteConfig(widgetState) { var configId = normalizeIdentifier(widgetState.config.botId || getChatIdForRequests(widgetState)); var url = getApiUrl(widgetState.config, API_PATHS.config + encodeURIComponent(configId)); return requestWithTimeout(url, { method: "GET" }, REQUEST_TIMEOUT).then(function(response){ if(!response.ok) throw new Error("Config request failed"); return response.json(); }).then(function(data){ applyRemoteConfig(widgetState, normalizeConfigResponse(data), {markAsLoaded:true}); }).catch(function(){ applyRemoteConfig(widgetState, {}, {markAsLoaded:true}); }).then(function(){ setLoadingState(widgetState,false); }); }
   function setLoadingState(widgetState, isLoading) { widgetState.isLoading=!!isLoading; widgetState.elements.sendBtn.disabled=!!isLoading; widgetState.elements.input.disabled=!!isLoading; }
   function createBotLoadingBubble(widgetState) { var bubble=appendMessage(widgetState,{role:"bot",text:"",skipPersist:true}); bubble.innerHTML=createTypingMarkup(); return bubble; }
   function updatePendingBotMessage(widgetState,bubble,text){ var last=widgetState.history[widgetState.history.length-1]; if(!last||last.role!=="bot"||last.text!==text){ widgetState.history.push({role:"bot",text:text}); persistHistory(widgetState);} typeWriter(widgetState,bubble,text); }
   function persistBotMessage(widgetState,text){ var t=String(text||"").trim(); if(!t)return; var last=widgetState.history[widgetState.history.length-1]; if(!last||last.role!=="bot"||last.text!==t){ widgetState.history.push({role:"bot",text:t}); persistHistory(widgetState);} }
   function parseStreamPayload(rawChunk){ var n=String(rawChunk||"").trim(); if(!n)return{kind:"ignore"}; if(n==="[DONE]")return{kind:"done"}; var p=parseJson(n,null); if(!p)return{kind:"chunk",text:n}; if(typeof p==="string")return{kind:"chunk",text:p}; if(p.type==="ready")return{kind:"ignore"}; if(p.type==="error")return{kind:"error",text:p.message||p.error||"Something went wrong. Please try again."}; if(p.type==="meta")return{kind:"meta",reply:typeof p.reply==="string"?p.reply:""}; if(p.type==="calendly_button")return{kind:"calendly_button",label:p.label||p.text||"Book a time",url:p.url||p.link||p.href||""}; if(typeof p.reply==="string")return{kind:"meta",reply:p.reply}; if(typeof p.token==="string")return{kind:"chunk",text:p.token}; if(typeof p.text==="string")return{kind:"chunk",text:p.text}; return{kind:"ignore"}; }
   function mergeStreamText(currentText,incomingPiece){ var base=String(currentText||""),piece=String(incomingPiece||""); if(!piece)return base; if(piece.indexOf(base)===0)return piece; return base+piece; }
-
-  function sendStreamChatRequest(widgetState,messageText,handlers){
-    var payload={botId:widgetState.config.botId||"",chatID:getChatIdForRequests(widgetState),bubbleVersion:widgetState.config.bubbleVersion||(widgetState.config.isTestVersion?"test":"live"),sessionId:widgetState.sessionId||"",message:messageText};
-    if(widgetState.config.userId)payload.userId=widgetState.config.userId; if(widgetState.config.aiModel)payload.model=widgetState.config.aiModel;
-    var tokenHeader=widgetState.config.chatbotToken; if(!tokenHeader)throw new Error("Missing data-chatbot-token");
-    return requestWithTimeout(widgetState.config.streamApiUrl||STREAM_CHAT_URL,{method:"POST",headers:{"Content-Type":"application/json","x-chatbot-token":tokenHeader},body:JSON.stringify(payload)},REQUEST_TIMEOUT).then(function(response){ if(!response.ok)throw new Error("Stream chat request failed"); if(!response.body||typeof response.body.getReader!=="function")throw new Error("Streaming is not supported by this browser"); var reader=response.body.getReader(),decoder=new TextDecoder(),buffered="",streamText="",finalReply=""; return new Promise(function(resolve,reject){ function applyPayload(r){ if(!r||r.kind==="ignore")return false; if(r.kind==="done")return true; if(r.kind==="meta"){if(r.reply)finalReply=r.reply;return false;} if(r.kind==="error"){if(handlers&&typeof handlers.onError==="function")handlers.onError(r.text);return false;} if(r.kind==="calendly_button"){if(handlers&&typeof handlers.onCalendlyButton==="function")handlers.onCalendlyButton(r);return false;} if(r.kind==="chunk"){streamText=mergeStreamText(streamText,r.text); if(handlers&&typeof handlers.onChunk==="function")handlers.onChunk(streamText);} return false;} function finish(){resolve({streamText:streamText,finalReply:finalReply});} function readNext(){ reader.read().then(function(result){ if(result.done){ var rem=buffered.trim(); if(rem)applyPayload(parseStreamPayload(rem.replace(/^data:\s*/i,""))); finish(); return;} buffered+=decoder.decode(result.value,{stream:true}); var lines=buffered.split(/\r?\n/); buffered=lines.pop()||""; for(var i=0;i<lines.length;i++){ var line=lines[i].trim(); if(!line)continue; if(line.indexOf(":")!==-1&&line.indexOf("data:")!==0)continue; var payloadText=line.indexOf("data:")===0?line.slice(5).trim():line; if(applyPayload(parseStreamPayload(payloadText))){finish();return;} } readNext(); }).catch(reject);} readNext(); }); });
-  }
-
+  function extractReplyFromJson(data){ return String((data && (data.reply || data.text || data.token || (data.response && (data.response.reply || data.response.text || data.response.token)))) || "").trim(); }
+  function sendStreamChatRequest(widgetState,messageText,handlers){ var payload={botId:widgetState.config.botId||"",chatID:getChatIdForRequests(widgetState),bubbleVersion:widgetState.config.bubbleVersion||(widgetState.config.isTestVersion?"test":"live"),sessionId:widgetState.sessionId||"",message:messageText}; if(widgetState.config.userId)payload.userId=widgetState.config.userId; if(widgetState.config.aiModel)payload.model=widgetState.config.aiModel; var tokenHeader=widgetState.config.chatbotToken; if(!tokenHeader)throw new Error("Missing data-chatbot-token"); return requestWithTimeout(widgetState.config.streamApiUrl||STREAM_CHAT_URL,{method:"POST",headers:{"Content-Type":"application/json","x-chatbot-token":tokenHeader},body:JSON.stringify(payload)},REQUEST_TIMEOUT).then(function(response){ if(!response.ok)throw new Error("Stream chat request failed"); var contentType = String(response.headers && response.headers.get ? response.headers.get("content-type") || "" : "").toLowerCase(); if(contentType.indexOf("application/json") !== -1){ return response.json().then(function(data){ var reply = extractReplyFromJson(data); if(handlers && typeof handlers.onChunk === "function" && reply) handlers.onChunk(reply); return { streamText: reply, finalReply: reply }; }); } if(!response.body||typeof response.body.getReader!=="function")throw new Error("Streaming is not supported by this browser"); var reader=response.body.getReader(),decoder=new TextDecoder(),buffered="",streamText="",finalReply=""; return new Promise(function(resolve,reject){ function applyPayload(r){ if(!r||r.kind==="ignore")return false; if(r.kind==="done")return true; if(r.kind==="meta"){if(r.reply)finalReply=r.reply;return false;} if(r.kind==="error"){if(handlers&&typeof handlers.onError==="function")handlers.onError(r.text);return false;} if(r.kind==="calendly_button"){if(handlers&&typeof handlers.onCalendlyButton==="function")handlers.onCalendlyButton(r);return false;} if(r.kind==="chunk"){streamText=mergeStreamText(streamText,r.text); if(handlers&&typeof handlers.onChunk==="function")handlers.onChunk(streamText);} return false;} function finish(){resolve({streamText:streamText,finalReply:finalReply});} function readNext(){ reader.read().then(function(result){ if(result.done){ var rem=buffered.trim(); if(rem)applyPayload(parseStreamPayload(rem.replace(/^data:\s*/i,""))); finish(); return;} buffered+=decoder.decode(result.value,{stream:true}); var lines=buffered.split(/\r?\n/); buffered=lines.pop()||""; for(var i=0;i<lines.length;i++){ var line=lines[i].trim(); if(!line)continue; if(line.indexOf(":")!==-1&&line.indexOf("data:")!==0)continue; var payloadText=line.indexOf("data:")===0?line.slice(5).trim():line; if(applyPayload(parseStreamPayload(payloadText))){finish();return;} } readNext(); }).catch(reject);} readNext(); }); }); }
   function saveChatToBubble(widgetState,userMessage,botMessage){ var url=getApiUrl(widgetState.config,widgetState.config.saveChatPath||API_PATHS.saveChat); var payload={botId:widgetState.config.botId||"",chatID:getChatIdForRequests(widgetState),bubbleVersion:widgetState.config.bubbleVersion||(widgetState.config.isTestVersion?"test":"live"),userId:widgetState.config.userId||"",sessionId:widgetState.sessionId||"",userMessage:String(userMessage||""),botMessage:String(botMessage||""),timestamp:new Date().toISOString()}; var headers={"Content-Type":"application/json"}; if(widgetState.config.chatbotToken)headers["x-chatbot-token"]=widgetState.config.chatbotToken; return requestWithTimeout(url,{method:"POST",headers:headers,body:JSON.stringify(payload)},REQUEST_TIMEOUT).then(function(response){ if(!response.ok)throw new Error("Save chat request failed"); return response; }); }
   function sendChatRequest(widgetState,messageText,attempt){ var url=getApiUrl(widgetState.config,API_PATHS.createChat); var payload={botId:widgetState.config.botId||"",chatID:getChatIdForRequests(widgetState),bubbleVersion:widgetState.config.bubbleVersion||(widgetState.config.isTestVersion?"test":"live"),message:messageText,sessionId:widgetState.sessionId||""}; if(widgetState.config.userId)payload.userId=widgetState.config.userId; return requestWithTimeout(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)},REQUEST_TIMEOUT).then(function(response){ if(!response.ok)throw new Error("Chat request failed"); return response.json(); }).catch(function(error){ if(attempt<1)return sendChatRequest(widgetState,messageText,attempt+1); throw error; }); }
   function handleSendAction(widgetState,event){ if(event&&typeof event.preventDefault==="function")event.preventDefault(); sendMessage(widgetState, widgetState.elements.input ? widgetState.elements.input.value : ""); }
   function renderCalendlyButton(widgetState,botBubble,payload){ if(!botBubble||!botBubble.parentNode)return; var existing=botBubble.parentNode.querySelector('.bot-cta'); if(existing)existing.parentNode.removeChild(existing); var button=document.createElement('button'); button.type='button'; button.className='bot-cta'; button.textContent=payload.label||'Book a time'; button.addEventListener('click',function(){ if(payload.url)window.open(payload.url,'_blank','noopener,noreferrer');}); botBubble.parentNode.appendChild(button); }
-
-  function sendMessage(widgetState,textOverride){ if(widgetState.isLoading)return; if(!widgetState.configLoaded){ setLoadingState(widgetState,true); loadRemoteConfig(widgetState).then(function(){ setLoadingState(widgetState,false); sendMessage(widgetState,textOverride); }).catch(function(){ setLoadingState(widgetState,false); }); return; } var input=widgetState.elements.input; var text=String(typeof textOverride==="string"?textOverride:(input&&input.value)||"").trim(); if(!text)return; setWidgetOpen(widgetState,true); appendMessage(widgetState,{role:"user",text:text}); if(input)input.value=""; var botBubble=createBotLoadingBubble(widgetState); var queuedStreamText=""; function flush(){ botBubble.textContent=queuedStreamText; scrollMessagesToBottom(widgetState); } setLoadingState(widgetState,true); sendStreamChatRequest(widgetState,text,{onChunk:function(streamText){ queuedStreamText=streamText; flush(); },onCalendlyButton:function(payload){ renderCalendlyButton(widgetState,botBubble,payload); },onError:function(errorText){ queuedStreamText=String(errorText||"Something went wrong. Please try again."); flush(); }}).then(function(streamResult){ var finalReply=String((streamResult&&streamResult.finalReply)||(streamResult&&streamResult.streamText)||"").trim()||"No response."; botBubble.innerHTML=renderMarkdown(finalReply); persistBotMessage(widgetState,finalReply); setLoadingState(widgetState,false); if(input&&input.focus)input.focus(); saveChatToBubble(widgetState,text,finalReply).catch(function(error){ if(window.console&&console.warn)console.warn("Unable to save chat to Bubble after stream completion.",error); return null;}); }).catch(function(){ sendChatRequest(widgetState,text,0).then(function(data){ var reply=data.text||data.reply||(data.response&&(data.response.text||data.response.reply))||"No response."; updatePendingBotMessage(widgetState,botBubble,reply); return saveChatToBubble(widgetState,text,reply).catch(function(){return null;}); }).catch(function(){ updatePendingBotMessage(widgetState,botBubble,"Server error. Please try again."); }).then(function(){ setLoadingState(widgetState,false); if(input&&input.focus)input.focus(); }); }); }
-
+  function sendMessage(widgetState,textOverride){ if(widgetState.isLoading)return; if(!widgetState.configLoaded){ setLoadingState(widgetState,true); loadRemoteConfig(widgetState).then(function(){ setLoadingState(widgetState,false); sendMessage(widgetState,textOverride); }).catch(function(){ setLoadingState(widgetState,false); }); return; } var input=widgetState.elements.input; var text=String(typeof textOverride==="string"?textOverride:(input&&input.value)||"").trim(); if(!text)return; setWidgetOpen(widgetState,true); appendMessage(widgetState,{role:"user",text:text}); if(input)input.value=""; var botBubble=createBotLoadingBubble(widgetState); var queuedStreamText=""; function flush(){ botBubble.textContent=queuedStreamText; scrollMessagesToBottom(widgetState); } setLoadingState(widgetState,true); sendStreamChatRequest(widgetState,text,{onChunk:function(streamText){ queuedStreamText=streamText; flush(); },onCalendlyButton:function(payload){ renderCalendlyButton(widgetState,botBubble,payload); },onError:function(errorText){ queuedStreamText=String(errorText||"Something went wrong. Please try again."); flush(); }}).then(function(streamResult){ var finalReply=String((streamResult&&streamResult.finalReply)||(streamResult&&streamResult.streamText)||"").trim()||"No response."; botBubble.innerHTML=renderMarkdown(finalReply); persistBotMessage(widgetState,finalReply); setLoadingState(widgetState,false); if(input&&input.focus)input.focus(); saveChatToBubble(widgetState,text,finalReply).catch(function(error){ if(window.console&&console.warn)console.warn("Unable to save chat to Bubble after stream completion.",error); return null;}); }).catch(function(){ sendChatRequest(widgetState,text,0).then(function(data){ var reply=extractReplyFromJson(data)||"No response."; updatePendingBotMessage(widgetState,botBubble,reply); return saveChatToBubble(widgetState,text,reply).catch(function(){return null;}); }).catch(function(){ updatePendingBotMessage(widgetState,botBubble,"Server error. Please try again."); }).then(function(){ setLoadingState(widgetState,false); if(input&&input.focus)input.focus(); }); }); }
   function bindWidgetEvents(widgetState){ if(widgetState.eventsBound)return; widgetState.eventsBound=true; widgetState.elements.launcher.addEventListener("click",function(){ setWidgetOpen(widgetState, widgetState.elements.widgetRoot.getAttribute("data-open")!=="true"); }); widgetState.elements.closeBtn.addEventListener("click",function(){ setWidgetOpen(widgetState,false); }); widgetState.elements.clearBtn.addEventListener("click",function(){ setLoadingState(widgetState,false); resetConversation(widgetState); if(widgetState.elements.input){ widgetState.elements.input.value=""; widgetState.elements.input.focus(); } setWidgetOpen(widgetState,true); }); widgetState.elements.sendBtn.addEventListener("click",function(event){ handleSendAction(widgetState,event); }); widgetState.elements.input.addEventListener("keydown",function(event){ if(event.key==="Enter"&&!event.shiftKey)handleSendAction(widgetState,event); }); }
   function bootstrapWidget(widgetState){ ensureHighZIndex(widgetState.config.botId); bindWidgetEvents(widgetState); ensureConversationStartedState(widgetState); restoreHistory(widgetState); applyRemoteConfig(widgetState,{}, {markAsLoaded:false}); setLoadingState(widgetState,true); loadRemoteConfig(widgetState); }
   function scheduleInitAttempt(reason){ if(!window[INIT_STATE]||!window[INIT_STATE].bootstrapped)return; var state=window[INIT_STATE]; if(state.scheduledReasons[reason])return; state.scheduledReasons[reason]=true; attemptInit(reason); }
