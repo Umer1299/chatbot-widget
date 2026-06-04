@@ -701,6 +701,7 @@
   }
 
   function saveChatToBubble(widgetState, userMessage, botMessage, creditsUsed) {
+    var credits = normalizeCredits(creditsUsed);
     var url = getApiUrl(widgetState.config, API_PATHS.createChat);
     var payload = {
       botId: widgetState.config.botId || "",
@@ -711,9 +712,11 @@
       message: String(userMessage || ""),
       userMessage: String(userMessage || ""),
       botMessage: String(botMessage || ""),
-      credits: normalizeCredits(creditsUsed),
+      credits: credits,
+      creditsUsed: credits,
       timestamp: new Date().toISOString()
     };
+    if (window.console && console.debug) console.debug("[chatbot-widget] create-chat payload credits", credits, payload);
     var headers = { "Content-Type": "application/json" };
     if (widgetState.config.chatbotToken) headers["x-chatbot-token"] = widgetState.config.chatbotToken;
     return requestWithTimeout(url, { method: "POST", headers: headers, body: JSON.stringify(payload) }, REQUEST_TIMEOUT).then(function (response) {
@@ -729,7 +732,9 @@
       chatID: getChatIdForRequests(widgetState),
       bubbleVersion: widgetState.config.bubbleVersion || (widgetState.config.isTestVersion ? "test" : "live"),
       message: messageText,
-      sessionId: widgetState.sessionId || ""
+      sessionId: widgetState.sessionId || "",
+      credits: 0,
+      creditsUsed: 0
     };
     if (widgetState.config.userId) payload.userId = widgetState.config.userId;
     return requestWithTimeout(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }, REQUEST_TIMEOUT)
