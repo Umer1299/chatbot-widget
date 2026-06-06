@@ -86,8 +86,6 @@
       script.src = getParam(["widgetSrc", "scriptSrc"]) || "./chatbot-widget.js";
       script.async = true;
 
-      // Match chatbot-widget.js exactly: index.html only creates the same script tag
-      // with the same data-* attributes the normal embed uses.
       script.setAttribute("data-bot-id", botId);
       copyParamToData(script, ["data-chat-id", "chatID", "chatId", "chat_id", "chat"], "data-chat-id");
       copyParamToData(script, ["data-api-host", "apiHost", "api_host", "dataApiHost"], "data-api-host", DEFAULT_API_HOST);
@@ -134,17 +132,24 @@
         var root = host.shadowRoot;
         if (!root) return;
 
+        host.style.position = "fixed";
+        host.style.inset = "0";
+        host.style.width = "100%";
+        host.style.height = "100%";
+        host.style.pointerEvents = "auto";
+
         var style = document.createElement("style");
         style.setAttribute("data-index-iframe-layout", "true");
         style.textContent = [
-          ":host{all:initial!important}",
-          ".widget-root{position:fixed!important;inset:0!important;left:0!important;right:0!important;bottom:0!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;display:flex!important;align-items:stretch!important;gap:0!important;pointer-events:auto!important}",
+          ":host{all:initial!important;position:fixed!important;inset:0!important;width:100%!important;height:100%!important;pointer-events:auto!important}",
+          ".widget-root{position:fixed!important;inset:0!important;left:0!important;right:0!important;top:0!important;bottom:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;display:flex!important;align-items:stretch!important;justify-content:stretch!important;gap:0!important;pointer-events:auto!important}",
           ".widget-root[data-position='left']{left:0!important;right:0!important;align-items:stretch!important}",
-          ".panel{display:flex!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;border-radius:0!important;border:none!important;box-shadow:none!important}",
+          ".chat-panel,.panel{display:flex!important;position:static!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;border-radius:0!important;border:none!important;box-shadow:none!important;margin:0!important;overflow:hidden!important}",
           ".launcher{display:none!important}",
-          ".header [data-role='close-btn']{display:none!important}",
-          ".chat-container{height:100vh!important;min-height:0!important}",
-          "@media(max-width:767px){.widget-root[data-open='true'] .panel{position:static!important;width:100vw!important;height:100vh!important}}"
+          ".chat-header .close-btn,.header [data-role='close-btn'],.close-btn{display:none!important}",
+          ".chat-container{height:100%!important;min-height:0!important}",
+          ".messages{flex:1 1 auto!important;min-height:0!important}",
+          "@media(max-width:767px){.widget-root[data-open='true'] .chat-panel,.widget-root[data-open='true'] .panel{position:static!important;width:100%!important;height:100%!important}}"
         ].join("\n");
         root.appendChild(style);
 
@@ -156,7 +161,7 @@
         keepOpen();
         window.setTimeout(keepOpen, 250);
         window.setTimeout(keepOpen, 750);
-        window.setInterval(keepOpen, 1500);
+        window.setTimeout(keepOpen, 1500);
       }
     })();
   </script>
