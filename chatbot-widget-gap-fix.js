@@ -54,8 +54,11 @@
         ".widget-root[data-open='true'] .launcher{width:58px!important;height:58px!important;border-radius:999px!important;background:var(--chatbot-primary,#2563eb)!important;color:#fff!important;font-size:0!important;display:flex!important;align-items:center!important;justify-content:center!important;box-shadow:0 14px 34px rgba(0,0,0,.28)!important;overflow:visible!important}",
         ".widget-root[data-open='true'] .launcher img{display:none!important}",
         ".widget-root[data-open='true'] .launcher::before{content:''!important;width:18px!important;height:18px!important;display:block!important;background-image:url('" + CLOSE_DOWN_ICON + "')!important;background-repeat:no-repeat!important;background-position:center!important;background-size:18px 18px!important}",
-        ".header .icon-btn,.chat-header .icon-btn,.icon-btn.clear-btn,.icon-btn.close-btn{background:transparent!important;background-color:transparent!important;box-shadow:none!important;border:none!important;width:30px!important;height:30px!important;min-width:30px!important;font-size:18px!important;color:#fff!important;opacity:1!important}",
-        ".header .icon-btn svg,.chat-header .icon-btn svg,.icon-btn.clear-btn svg,.icon-btn.close-btn svg{width:18px!important;height:18px!important;stroke-width:2.4!important}"
+        ".chat-header{gap:6px!important}",
+        ".chat-header .icon-btn,.header .icon-btn,.icon-btn.clear-btn,.icon-btn.close-btn{background:transparent!important;background-color:transparent!important;box-shadow:none!important;border:0!important;border-radius:0!important;padding:0!important;margin:0!important;width:18px!important;height:18px!important;min-width:18px!important;max-width:18px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;font-size:18px!important;line-height:18px!important;color:#fff!important;opacity:1!important}",
+        ".chat-header .icon-btn svg,.header .icon-btn svg,.icon-btn.clear-btn svg,.icon-btn.close-btn svg{width:18px!important;height:18px!important;stroke-width:2.4!important}",
+        ".icon-btn.clear-btn{font-size:18px!important}",
+        ".icon-btn.close-btn{font-size:19px!important}"
       ].join("\n");
       root.appendChild(style);
     }
