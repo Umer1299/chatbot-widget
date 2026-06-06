@@ -8,7 +8,7 @@
 
   function resizeTextarea(textarea) {
     if (!textarea) return;
-    var minHeight = 36;
+    var minHeight = 42;
     var maxHeight = 112;
     textarea.style.height = minHeight + "px";
     var nextHeight = Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight));
@@ -42,10 +42,10 @@
         ".prompts:empty{display:none!important;padding:0!important;border-top:0!important}",
         ".prompts[data-hidden='true']{display:none!important;padding:0!important;border-top:0!important}",
         ".composer{position:relative!important;flex:0 0 auto!important;margin-top:0!important;display:block!important;padding:7px 12px!important;background:#fff!important}",
-        ".composer textarea{box-sizing:border-box!important;width:100%!important;min-height:36px!important;height:36px;max-height:112px!important;padding:8px 54px 8px 14px!important;border-radius:20px!important;line-height:18px!important;overflow-y:hidden;resize:none!important;scrollbar-width:thin!important}",
+        ".composer textarea{box-sizing:border-box!important;width:100%!important;min-height:42px!important;height:42px;max-height:112px!important;padding:11px 58px 11px 14px!important;border-radius:22px!important;line-height:18px!important;overflow-y:hidden;resize:none!important;scrollbar-width:thin!important}",
         ".branding{flex:0 0 auto!important;padding:5px 12px!important}",
-        ".send-btn{position:absolute!important;right:18px!important;bottom:13px!important;box-sizing:border-box!important;width:24px!important;height:24px!important;min-width:24px!important;max-width:24px!important;padding:0!important;border-radius:999px!important;background:var(--chatbot-primary,#2563eb)!important;color:#fff!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:0!important;line-height:1!important;box-shadow:none!important}",
-        ".send-btn::before{content:''!important;width:13px!important;height:13px!important;display:block!important;background-image:url('" + LIGHT_SEND_ICON + "')!important;background-repeat:no-repeat!important;background-position:center!important;background-size:13px 13px!important;transform:translateY(0)!important}",
+        ".send-btn{position:absolute!important;right:19px!important;bottom:14px!important;box-sizing:border-box!important;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important;padding:0!important;border-radius:999px!important;background:var(--chatbot-primary,#2563eb)!important;color:#fff!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:0!important;line-height:1!important;box-shadow:none!important}",
+        ".send-btn::before{content:''!important;width:15px!important;height:15px!important;display:block!important;background-image:url('" + LIGHT_SEND_ICON + "')!important;background-repeat:no-repeat!important;background-position:center!important;background-size:15px 15px!important;transform:translateY(0)!important}",
         ".widget-root[data-theme='dark'] .send-btn::before{background-image:url('" + DARK_SEND_ICON + "')!important}",
         ".send-btn:disabled{opacity:.45!important;cursor:not-allowed!important;box-shadow:none!important}",
         ".widget-root[data-open='true'] .launcher{width:58px!important;height:58px!important;border-radius:999px!important;background:var(--chatbot-primary,#2563eb)!important;color:#fff!important;font-size:0!important;display:flex!important;align-items:center!important;justify-content:center!important;box-shadow:0 14px 34px rgba(0,0,0,.28)!important;overflow:visible!important}",
