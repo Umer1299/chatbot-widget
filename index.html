@@ -161,9 +161,9 @@
           ".launcher{display:none!important}",
           ".chat-container{height:100%!important;min-height:0!important}",
           ".messages{flex:1 1 auto!important;min-height:0!important}",
-          ".composer{display:flex!important;flex-direction:row!important;gap:8px!important;padding:12px!important;border-top:1px solid #e5e7eb!important;background:#fff!important;position:static!important;margin-top:0!important;align-items:stretch!important}",
-          ".composer textarea{flex:1 1 auto!important;width:auto!important;min-width:0!important;min-height:42px!important;height:auto!important;max-height:110px!important;padding:10px 12px!important;border:1px solid #d1d5db!important;border-radius:14px!important;font:inherit!important;line-height:normal!important;resize:none!important;outline:none!important;overflow:auto!important;box-sizing:border-box!important}",
-          ".send-btn{position:static!important;transform:none!important;width:auto!important;height:auto!important;min-width:62px!important;max-width:none!important;padding:0 14px!important;border:0!important;border-radius:14px!important;font-weight:700!important;font-size:14px!important;line-height:normal!important;color:#fff!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;box-shadow:none!important;box-sizing:border-box!important}",
+          ".composer{display:flex!important;flex-direction:row!important;gap:8px!important;padding:12px!important;border-top:1px solid #e5e7eb!important;background:#fff!important;position:static!important;margin-top:0!important;align-items:stretch!important;box-sizing:border-box!important}",
+          ".composer textarea{flex:1!important;resize:none!important;min-height:42px!important;max-height:110px!important;padding:10px 12px!important;border:1px solid #d1d5db!important;border-radius:14px!important;font:inherit!important;outline:none!important;box-sizing:border-box!important;width:auto!important;height:auto!important;line-height:normal!important;overflow:auto!important}",
+          ".send-btn{border:0!important;color:#fff!important;border-radius:14px!important;padding:0 14px!important;font-weight:700!important;cursor:pointer!important;position:static!important;transform:none!important;width:auto!important;height:auto!important;min-width:0!important;max-width:none!important;font-size:14px!important;line-height:normal!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;box-sizing:border-box!important;white-space:nowrap!important;text-indent:0!important;overflow:visible!important}",
           ".send-btn::before,.send-btn::after{content:none!important;background:none!important;display:none!important}",
           ".branding{display:none!important;text-align:center!important;padding:8px 12px!important;font-size:12px!important;border-top:1px solid #e5e7eb!important;background:#fff!important}",
           ".branding[data-visible='true']{display:block!important}",
@@ -174,7 +174,9 @@
 
         function keepOpen() {
           var widgetRoot = root.querySelector(".widget-root");
+          var sendButton = root.querySelector(".send-btn");
           if (widgetRoot) widgetRoot.setAttribute("data-open", "true");
+          if (sendButton && sendButton.textContent.trim() !== "Send") sendButton.textContent = "Send";
         }
 
         keepOpen();
