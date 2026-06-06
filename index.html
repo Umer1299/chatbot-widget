@@ -47,6 +47,8 @@
     (function () {
       var DEFAULT_API_HOST = "https://chatflowai.io";
       var DEFAULT_STREAM_URL = "https://chatbot-backend-w1ju.onrender.com/api/chat?stream=true";
+      var LIGHT_SEND_ICON = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAItJREFUOI3N0DEOQUEUQNFHJChpbcIelHprsAbdtwaLYSsWoBeN7mjmy4SJzP8icauZl9z7khfxazD6Rm5wwrSv3NIt8iJ3i2BfkFuOmNRubnBN7x3uWWRckhe5nGZtYIl1FtmUAoO0dZvNnoH0X+GAec0t3wIlhlWlD/x/4BwRt4i49KpjilkvuZYHFKbfp+NCkccAAAAASUVORK5CYII=";
+      var DARK_SEND_ICON = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAIVJREFUOI3Vz7EJAkEQheFPEfRCTW3CHgzNrcEaLjtrsBhtxQLMxcRMkxWGc5G9FQQfPBgG/n8YfpDJN3CHE5pa+JE6WBLhwZJ9Bn71iFnp5Q7XNLe4B8k0By97sCBYYRMk25xglMBd2EUBrHHA4tMbMX3BW8alpv8VnHHDpfZAg3ktXJQnOVkpXs/7om4AAAAASUVORK5CYII=";
       var params = new URLSearchParams(window.location.search);
       var loader = document.getElementById("embed-loader");
       var errorBox = document.getElementById("embed-error");
@@ -141,6 +143,31 @@
         }, 100);
       }
 
+      function resizeTextarea(textarea) {
+        if (!textarea) return;
+        var minHeight = 42;
+        var maxHeight = 110;
+        textarea.style.height = minHeight + "px";
+        var nextHeight = Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight));
+        textarea.style.height = nextHeight + "px";
+        textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
+        var composer = textarea.closest ? textarea.closest(".composer") : null;
+        if (composer) composer.setAttribute("data-multiline", nextHeight > minHeight + 4 ? "true" : "false");
+      }
+
+      function attachInputResize(root) {
+        var textarea = root.querySelector(".composer textarea");
+        if (!textarea || textarea.__chatflowIframeResizeAttached) return;
+        textarea.__chatflowIframeResizeAttached = true;
+        textarea.setAttribute("rows", "1");
+        resizeTextarea(textarea);
+        textarea.addEventListener("input", function () { resizeTextarea(textarea); });
+        textarea.addEventListener("change", function () { resizeTextarea(textarea); });
+        textarea.addEventListener("keydown", function () {
+          window.setTimeout(function () { resizeTextarea(textarea); }, 0);
+        });
+      }
+
       function forceIframeLayout(host) {
         var root = host.shadowRoot;
         if (!root) return;
@@ -161,10 +188,13 @@
           ".launcher{display:none!important}",
           ".chat-container{height:100%!important;min-height:0!important}",
           ".messages{flex:1 1 auto!important;min-height:0!important}",
-          ".composer{display:flex!important;flex-direction:row!important;gap:8px!important;padding:12px!important;border-top:1px solid #e5e7eb!important;background:#fff!important;position:static!important;margin-top:0!important;align-items:stretch!important;box-sizing:border-box!important}",
-          ".composer textarea{flex:1!important;resize:none!important;min-height:42px!important;max-height:110px!important;padding:10px 12px!important;border:1px solid #d1d5db!important;border-radius:14px!important;font:inherit!important;outline:none!important;box-sizing:border-box!important;width:auto!important;height:auto!important;line-height:normal!important;overflow:auto!important}",
-          ".send-btn{border:0!important;color:#fff!important;border-radius:14px!important;padding:0 14px!important;font-weight:700!important;cursor:pointer!important;position:static!important;transform:none!important;width:auto!important;height:auto!important;min-width:0!important;max-width:none!important;font-size:14px!important;line-height:normal!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;box-sizing:border-box!important;white-space:nowrap!important;text-indent:0!important;overflow:visible!important}",
-          ".send-btn::before,.send-btn::after{content:none!important;background:none!important;display:none!important}",
+          ".composer{position:relative!important;display:block!important;flex:0 0 auto!important;padding:12px!important;border-top:1px solid #e5e7eb!important;background:#fff!important;margin-top:0!important;box-sizing:border-box!important}",
+          ".composer textarea{box-sizing:border-box!important;width:100%!important;min-height:42px!important;height:42px;max-height:110px!important;padding:10px 58px 10px 12px!important;border:1px solid #d1d5db!important;border-radius:14px!important;font:inherit!important;line-height:1.35!important;resize:none!important;outline:none!important;overflow-y:hidden;display:block!important}",
+          ".send-btn{position:absolute!important;right:19px!important;top:33px!important;bottom:auto!important;transform:translateY(-50%)!important;box-sizing:border-box!important;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important;padding:0!important;border:0!important;border-radius:999px!important;background:var(--chatbot-primary,#2563eb)!important;color:#fff!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:0!important;line-height:1!important;box-shadow:none!important;text-indent:0!important;overflow:hidden!important}",
+          ".composer[data-multiline='true'] .send-btn{top:auto!important;bottom:19px!important;transform:none!important}",
+          ".send-btn::before{content:''!important;width:15px!important;height:15px!important;display:block!important;background-image:url('" + LIGHT_SEND_ICON + "')!important;background-repeat:no-repeat!important;background-position:center!important;background-size:15px 15px!important}",
+          ".widget-root[data-theme='dark'] .send-btn::before{background-image:url('" + DARK_SEND_ICON + "')!important}",
+          ".send-btn::after{content:none!important;display:none!important}",
           ".branding{display:none!important;text-align:center!important;padding:8px 12px!important;font-size:12px!important;border-top:1px solid #e5e7eb!important;background:#fff!important}",
           ".branding[data-visible='true']{display:block!important}",
           ".widget-root[data-theme='dark'] .composer,.widget-root[data-theme='dark'] .branding{background:#111827!important;color:#f9fafb!important}",
@@ -174,9 +204,10 @@
 
         function keepOpen() {
           var widgetRoot = root.querySelector(".widget-root");
-          var sendButton = root.querySelector(".send-btn");
+          var input = root.querySelector(".composer textarea");
           if (widgetRoot) widgetRoot.setAttribute("data-open", "true");
-          if (sendButton && sendButton.textContent.trim() !== "Send") sendButton.textContent = "Send";
+          attachInputResize(root);
+          if (input) resizeTextarea(input);
         }
 
         keepOpen();
