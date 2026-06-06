@@ -74,6 +74,16 @@
         return value;
       }
 
+      function resolveBubbleVersion() {
+        var explicit = getParam(["data-bubble-version", "bubbleVersion", "bubble_version", "version", "env", "mode", "bubbleEnv", "bubble_env", "data-env", "data-mode"]);
+        if (explicit) return explicit;
+
+        var testFlag = getParam(["test", "isTestVersion", "is_test_version", "development", "dev"]);
+        if (/^(true|1|yes|test|dev|development|version-test)$/i.test(testFlag)) return "test";
+
+        return "";
+      }
+
       var botId = getParam(["data-bot-id", "botId", "botID", "bot_id", "bot"]);
       var chatbotToken = getParam(["data-chatbot-token", "chatbotToken", "chatbot_token", "widgetToken", "widget_token", "token", "data-token", "data-widget-token"]);
 
@@ -91,7 +101,10 @@
       copyParamToData(script, ["data-api-host", "apiHost", "api_host", "dataApiHost"], "data-api-host", DEFAULT_API_HOST);
       copyParamToData(script, ["data-chatbot-token", "chatbotToken", "chatbot_token", "widgetToken", "widget_token", "token", "data-token", "data-widget-token"], "data-chatbot-token", chatbotToken);
       copyParamToData(script, ["data-stream-api-url", "streamApiUrl", "stream_api_url", "chatApiUrl", "chat_api_url"], "data-stream-api-url", DEFAULT_STREAM_URL);
-      copyParamToData(script, ["data-bubble-version", "bubbleVersion", "version", "env", "mode", "bubbleEnv", "data-env", "data-mode"], "data-bubble-version");
+
+      var bubbleVersion = resolveBubbleVersion();
+      if (bubbleVersion) script.setAttribute("data-bubble-version", bubbleVersion);
+
       copyParamToData(script, ["data-position", "position"], "data-position");
 
       var themeConfig = getParam(["data-theme-config", "themeConfig", "theme_config"]);
