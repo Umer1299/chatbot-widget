@@ -58,7 +58,7 @@
         ".chat-header .title{margin-right:4px!important}",
         ".chat-header .icon-btn,.header .icon-btn,.icon-btn.clear-btn,.icon-btn.close-btn{background:transparent!important;background-color:transparent!important;box-shadow:none!important;border:0!important;border-radius:0!important;padding:0!important;margin:0!important;width:auto!important;height:auto!important;min-width:0!important;max-width:none!important;display:inline!important;font-size:24px!important;line-height:1!important;color:#fff!important;opacity:1!important;cursor:pointer!important}",
         ".icon-btn.clear-btn{font-size:23px!important;transform:translateY(-1px)!important}",
-        ".icon-btn.close-btn{font-size:24px!important;font-weight:400!important}"
+        ".icon-btn.close-btn{font-size:30px!important;font-weight:400!important;transform:translateY(-2px)!important}"
       ].join("\n");
       root.appendChild(style);
     }
