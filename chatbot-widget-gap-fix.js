@@ -139,18 +139,13 @@
     return true;
   }
 
-  function closeIfAutoOpenDisabled() {
+  function resizeExistingInputs() {
     var hostState = window.__chatbotWidgetHostState;
     if (!hostState) return;
 
     Object.keys(hostState).forEach(function (key) {
       var state = hostState[key];
-      if (!state || !state.elements || !state.elements.widgetRoot) return;
-      if (state.configLoaded && state.autoOpen !== true) {
-        state.elements.widgetRoot.setAttribute("data-open", "false");
-        if (state.uiState) state.uiState.open = false;
-      }
-      if (state.elements && state.elements.input) resizeTextarea(state.elements.input);
+      if (state && state.elements && state.elements.input) resizeTextarea(state.elements.input);
     });
   }
 
@@ -161,7 +156,7 @@
       if (hosts[i] && hosts[i].shadowRoot) installFix(hosts[i].shadowRoot);
     }
 
-    closeIfAutoOpenDisabled();
+    resizeExistingInputs();
 
     attempt += 1;
     if (attempt < MAX_ATTEMPTS) {
