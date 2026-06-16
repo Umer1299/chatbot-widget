@@ -170,6 +170,23 @@
         window.addEventListener("resize", function () { resizeTextarea(textarea); });
       }
 
+      function styleBrandingText(root) {
+        var link = root.querySelector(".branding a");
+        if (!link || link.__chatflowBrandStyled) return;
+        var text = String(link.textContent || "").trim();
+        if (!text) return;
+        var compact = text.replace(/Chatflow\s+AI/g, "ChatflowAI");
+        if (compact.indexOf("ChatflowAI") === -1) return;
+        link.textContent = "";
+        var before = compact.split("ChatflowAI")[0];
+        if (before) link.appendChild(document.createTextNode(before));
+        var brand = document.createElement("span");
+        brand.className = "chatflow-brand-text";
+        brand.textContent = "ChatflowAI";
+        link.appendChild(brand);
+        link.__chatflowBrandStyled = true;
+      }
+
       function forceIframeLayout(host) {
         var root = host.shadowRoot;
         if (!root) return;
@@ -200,15 +217,17 @@
           ".chat-header .clear-btn,.chat-header .close-btn{display:none!important}",
           ".messages{flex:1 1 auto!important;min-height:0!important;border-bottom:0!important}",
           ".prompts,.prompts[data-hidden='true']{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;border:0!important;overflow:hidden!important}",
-          ".composer{position:relative!important;display:block!important;flex:0 0 auto!important;padding:8px 12px 12px 12px!important;border-top:0!important;background:#fff!important;margin-top:0!important;box-sizing:border-box!important;font-family:inherit!important;font-size:inherit!important}",
+          ".composer{position:relative!important;display:block!important;flex:0 0 auto!important;padding:8px 12px 12px 12px!important;border-top:0!important;border-bottom:0!important;background:#fff!important;margin-top:0!important;box-sizing:border-box!important;font-family:inherit!important;font-size:inherit!important;box-shadow:none!important}",
           ".composer textarea{box-sizing:border-box!important;width:100%!important;min-height:42px!important;height:42px;max-height:110px!important;padding:10px 58px 10px 14px!important;border:1px solid #d1d5db!important;border-radius:999px!important;font:inherit!important;font-family:inherit!important;font-size:inherit!important;line-height:1.35!important;resize:none!important;outline:none!important;overflow-y:hidden!important;display:block!important;background:#fff!important}",
           ".send-btn{position:absolute!important;right:19px!important;top:29px!important;bottom:auto!important;transform:translateY(-50%)!important;box-sizing:border-box!important;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important;padding:0!important;border:0!important;border-radius:999px!important;background:var(--chatbot-primary,#2563eb)!important;color:#fff!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:0!important;line-height:1!important;box-shadow:none!important;text-indent:0!important;overflow:hidden!important}",
           ".composer[data-multiline='true'] .send-btn{top:auto!important;bottom:19px!important;transform:none!important}",
           ".send-btn::before{content:''!important;width:15px!important;height:15px!important;display:block!important;background-image:url('" + LIGHT_SEND_ICON + "')!important;background-repeat:no-repeat!important;background-position:center!important;background-size:15px 15px!important}",
           ".widget-root[data-theme='dark'] .send-btn::before{background-image:url('" + DARK_SEND_ICON + "')!important}",
           ".send-btn::after{content:none!important;display:none!important}",
-          ".branding{display:none!important;text-align:center!important;padding:8px 12px!important;font-size:12px!important;border-top:1px solid #e5e7eb!important;background:#fff!important;font-family:inherit!important}",
+          ".branding{display:none!important;text-align:center!important;padding:8px 12px!important;font-size:12px!important;border-top:0!important;border-bottom:0!important;background:#fff!important;font-family:inherit!important;box-shadow:none!important}",
           ".branding[data-visible='true']{display:block!important}",
+          ".branding a{color:#64748b!important;text-decoration:none!important;font-weight:400!important}",
+          ".branding a .chatflow-brand-text{color:#0949c7!important;font-weight:800!important}",
           ".widget-root[data-theme='dark'] .composer{background:#111827!important;color:#f9fafb!important}",
           ".widget-root[data-theme='dark'] .branding{background:#111827!important;color:#f9fafb!important}",
           ".widget-root[data-theme='dark'] .composer textarea{background:#1f2937!important;color:#f9fafb!important;border-color:#374151!important}",
@@ -222,6 +241,7 @@
           var input = root.querySelector(".composer textarea");
           if (widgetRoot) widgetRoot.setAttribute("data-open", "true");
           attachInputResize(root);
+          styleBrandingText(root);
           if (input) resizeTextarea(input);
         }
 
