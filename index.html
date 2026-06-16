@@ -58,6 +58,19 @@
         return "";
       }
 
+      function resolveHeaderImageRadius() {
+        var value = getParam(["headerImageRadius", "header_image_radius", "logoRadius", "logo_radius", "avatarRadius", "avatar_radius", "imageRadius", "image_radius"]);
+        var rounded = getParam(["headerImageRounded", "header_image_rounded", "roundHeaderImage", "round_header_image", "roundedLogo", "rounded_logo"]);
+        var normalizedRounded = String(rounded || "").toLowerCase().trim();
+        if (/^(false|0|no|off|none|square)$/i.test(normalizedRounded)) return "0px";
+        if (/^(true|1|yes|on|round|rounded|circle)$/i.test(normalizedRounded)) return "999px";
+        if (!value) return "999px";
+        if (/^(false|0|no|off|none|square)$/i.test(value)) return "0px";
+        if (/^(true|yes|on|round|rounded|circle)$/i.test(value)) return "999px";
+        if (/^\d+(\.\d+)?$/.test(value)) return value + "px";
+        return value;
+      }
+
       function showError(message) {
         if (loader) loader.style.display = "none";
         if (errorBox) {
@@ -87,6 +100,7 @@
 
       var botId = getParam(["data-bot-id", "botId", "botID", "bot_id", "bot", "chatbotId", "chatbot_id"]);
       var chatbotToken = getParam(["data-chatbot-token", "chatbotToken", "chatbot_token", "widgetToken", "widget_token", "token", "data-token", "data-widget-token"]);
+      var headerImageRadius = resolveHeaderImageRadius();
 
       if (!botId) {
         showError("Bot ID missing. Use ?botId=YOUR_BOT_ID in the index.html URL.");
@@ -180,7 +194,8 @@
           ".launcher{display:none!important}",
           ".chat-container{height:100%!important;min-height:0!important;border-radius:20px!important;overflow:hidden!important}",
           ".chat-header{position:relative!important;overflow:visible!important}",
-          ".chat-header .avatar,.avatar{width:48px!important;height:48px!important;min-width:48px!important;flex:0 0 48px!important;border-radius:999px!important;background-size:cover!important;background-position:center!important}",
+          ".chat-header .avatar,.avatar{width:48px!important;height:48px!important;min-width:48px!important;flex:0 0 48px!important;border-radius:" + headerImageRadius + "!important;background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important;background-color:transparent!important;box-shadow:none!important}",
+          ".chat-header .avatar img,.avatar img,.launcher img,img{background:transparent!important;background-color:transparent!important;box-shadow:none!important}",
           ".chat-header .title,.title{font-size:18px!important;font-weight:800!important;line-height:1.2!important;letter-spacing:-0.01em!important}",
           ".chat-header .clear-btn,.chat-header .close-btn{display:none!important}",
           ".messages{flex:1 1 auto!important;min-height:0!important;border-bottom:0!important}",
