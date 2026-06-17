@@ -58,39 +58,6 @@
         return "";
       }
 
-      function installBubbleSaveFetchPatch() {
-        if (!window.fetch || window.__chatflowBubbleSaveFetchPatch) return;
-        window.__chatflowBubbleSaveFetchPatch = true;
-        var originalFetch = window.fetch;
-        window.fetch = function (input, init) {
-          try {
-            var url = typeof input === "string" ? input : (input && input.url) || "";
-            var isCreateChat = String(url || "").indexOf("/api/1.1/wf/create-chat") !== -1;
-            if (isCreateChat && init && init.headers) {
-              var headers = new Headers(init.headers);
-              var token = headers.get("x-chatbot-token");
-              if (token) {
-                headers.delete("x-chatbot-token");
-                var body = init.body;
-                if (typeof body === "string" && body.trim()) {
-                  try {
-                    var payload = JSON.parse(body);
-                    if (payload && typeof payload === "object" && !payload.chatbotToken) {
-                      payload.chatbotToken = token;
-                      body = JSON.stringify(payload);
-                    }
-                  } catch (jsonError) {}
-                }
-                init = Object.assign({}, init, { headers: headers, body: body });
-              }
-            }
-          } catch (patchError) {}
-          return originalFetch.call(this, input, init);
-        };
-      }
-
-      installBubbleSaveFetchPatch();
-
       function resolveHeaderImageRadius() {
         var value = getParam(["headerImageRadius", "header_image_radius", "logoRadius", "logo_radius", "avatarRadius", "avatar_radius", "imageRadius", "image_radius"]);
         var rounded = getParam(["headerImageRounded", "header_image_rounded", "roundHeaderImage", "round_header_image", "roundedLogo", "rounded_logo"]);
