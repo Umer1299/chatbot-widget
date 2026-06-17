@@ -42,13 +42,13 @@
     (function () {
       var DEFAULT_API_HOST = "https://chatflowai.io";
       var DEFAULT_STREAM_URL = "https://chatbot-backend-w1ju.onrender.com/api/chat?stream=true";
-      var STABLE_WIDGET_SRC = "https://cdn.jsdelivr.net/gh/Umer1299/chatbot-widget@main/chatbot-widget.js";
-      var LIGHT_SEND_ICON = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAItJREFUOI3N0DEOQUEUQNFHJChpbcIelHprsAbdtwaLYSsWoBeN7mjmy4SJzP8icauZl9z7khfxazD6Rm5wwrSv3NIt8iJ3i2BfkFuOmNRubnBN7x3uWWRckhe5nGZtYIl1FtmUAoO0dZvNnoH0X+GAec0t3wIlhlWlD/x/4BwRt4i49KpjilkvuZYHFKbfp+NCkccAAAAASUVORK5CYII=";
-      var DARK_SEND_ICON = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAIVJREFUOI3Vz7EJAkEQheFPEfRCTW3CHgzNrcEaLjtrsBhtxQLMxcRMkxWGc5G9FQQfPBgG/n8YfpDJN3CHE5pa+JE6WBLhwZJ9Bn71iFnp5Q7XNLe4B8k0By97sCBYYRMk25xglMBd2EUBrHHA4tMbMX3BW8alpv8VnHHDpfZAg3ktXJQnOVkpXs/7om4AAAAASUVORK5CYII=";
+      var LOCAL_WIDGET_SRC = "./chatbot-widget.js";
       var params = new URLSearchParams(window.location.search);
       var loader = document.getElementById("embed-loader");
       var errorBox = document.getElementById("embed-error");
       var iframeMode = getParam(["iframeMode", "iframe", "embedMode"]) !== "false";
+      var retryStarted = false;
+      var lastWidgetError = "";
 
       function getParam(names) {
         for (var i = 0; i < names.length; i += 1) {
@@ -58,24 +58,18 @@
         return "";
       }
 
-      function resolveHeaderImageRadius() {
-        var value = getParam(["headerImageRadius", "header_image_radius", "logoRadius", "logo_radius", "avatarRadius", "avatar_radius", "imageRadius", "image_radius"]);
-        var rounded = getParam(["headerImageRounded", "header_image_rounded", "roundHeaderImage", "round_header_image", "roundedLogo", "rounded_logo"]);
-        var normalizedRounded = String(rounded || "").toLowerCase().trim();
-        if (/^(false|0|no|off|none|square)$/i.test(normalizedRounded)) return "0px";
-        if (/^(true|1|yes|on|round|rounded|circle)$/i.test(normalizedRounded)) return "999px";
-        if (!value) return "999px";
-        if (/^(false|0|no|off|none|square)$/i.test(value)) return "0px";
-        if (/^(true|yes|on|round|rounded|circle)$/i.test(value)) return "999px";
-        if (/^\d+(\.\d+)?$/.test(value)) return value + "px";
-        return value;
-      }
-
       function showError(message) {
         if (loader) loader.style.display = "none";
         if (errorBox) {
           errorBox.textContent = message;
           errorBox.style.display = "flex";
+        }
+      }
+
+      function hideError() {
+        if (errorBox) {
+          errorBox.textContent = "";
+          errorBox.style.display = "none";
         }
       }
 
@@ -88,47 +82,102 @@
       function resolveBubbleVersion() {
         var explicit = getParam(["data-bubble-version", "bubbleVersion", "bubble_version", "version", "env", "mode", "bubbleEnv", "bubble_env", "data-env", "data-mode"]);
         if (explicit) return explicit;
-
         var testFlag = getParam(["test", "isTestVersion", "is_test_version", "development", "dev"]);
         if (/^(true|1|yes|test|dev|development|version-test)$/i.test(testFlag)) return "test";
-
         var referrer = String(document.referrer || "").toLowerCase();
         if (referrer.indexOf("version-test") !== -1 || referrer.indexOf("debug_mode=true") !== -1) return "test";
-
         return "";
       }
 
+      function addCacheBust(src) {
+        var clean = String(src || LOCAL_WIDGET_SRC).trim() || LOCAL_WIDGET_SRC;
+        return clean + (clean.indexOf("?") === -1 ? "?" : "&") + "cf_cache=" + Date.now();
+      }
+
+      function resetWidgetGlobals() {
+        try { window.__chatbotWidgetInitState = null; } catch (e) {}
+        try { window.__chatbotWidgetHostState = null; } catch (e) {}
+      }
+
+      function getWidgetSource(forceLocal) {
+        if (forceLocal) return addCacheBust(LOCAL_WIDGET_SRC);
+        return addCacheBust(getParam(["widgetSrc", "scriptSrc"]) || LOCAL_WIDGET_SRC);
+      }
+
+      function removeLoaderScripts() {
+        var scripts = document.querySelectorAll("script[data-chatflow-index-loader='true']");
+        for (var i = 0; i < scripts.length; i += 1) {
+          if (scripts[i] && scripts[i].parentNode) scripts[i].parentNode.removeChild(scripts[i]);
+        }
+      }
+
+      function buildWidgetScript(src) {
+        var script = document.createElement("script");
+        script.src = src;
+        script.async = false;
+        script.defer = false;
+        script.crossOrigin = "anonymous";
+        script.setAttribute("data-chatflow-index-loader", "true");
+        script.setAttribute("data-bot-id", botId);
+        copyParamToData(script, ["data-chat-id", "chatID", "chatId", "chat_id", "chat"], "data-chat-id");
+        copyParamToData(script, ["data-api-host", "apiHost", "api_host", "dataApiHost"], "data-api-host", DEFAULT_API_HOST);
+        copyParamToData(script, ["data-chatbot-token", "chatbotToken", "chatbot_token", "widgetToken", "widget_token", "token", "data-token", "data-widget-token"], "data-chatbot-token", chatbotToken);
+        copyParamToData(script, ["data-stream-api-url", "streamApiUrl", "stream_api_url", "chatApiUrl", "chat_api_url"], "data-stream-api-url", DEFAULT_STREAM_URL);
+        copyParamToData(script, ["data-position", "position"], "data-position");
+        var bubbleVersion = resolveBubbleVersion();
+        if (bubbleVersion) script.setAttribute("data-bubble-version", bubbleVersion);
+        var themeConfig = getParam(["data-theme-config", "themeConfig", "theme_config"]);
+        if (themeConfig) script.setAttribute("data-theme-config", themeConfig);
+        else if (iframeMode) script.setAttribute("data-theme-config", JSON.stringify({ autoOpen: true }));
+        script.onload = function () { waitForWidgetHost(botId); };
+        script.onerror = function () {
+          lastWidgetError = "Unable to load chatbot-widget.js from " + src;
+          if (!retryStarted) retryWithLocalWidget();
+          else showError(lastWidgetError);
+        };
+        return script;
+      }
+
+      function loadWidget(forceLocal) {
+        hideError();
+        resetWidgetGlobals();
+        removeLoaderScripts();
+        document.body.appendChild(buildWidgetScript(getWidgetSource(forceLocal)));
+      }
+
+      function retryWithLocalWidget() {
+        if (retryStarted) return;
+        retryStarted = true;
+        if (loader) loader.textContent = "Loading chatbot...";
+        loadWidget(true);
+      }
+
+      window.addEventListener("error", function (event) {
+        var filename = String((event && event.filename) || "");
+        if (filename.indexOf("chatbot-widget.js") !== -1) {
+          lastWidgetError = String((event && event.message) || "Widget JavaScript error");
+          if (window.console && console.error) console.error("[chatflow-index] widget script error:", event.error || event.message || event);
+        }
+      });
+
+      window.addEventListener("unhandledrejection", function (event) {
+        var reason = event && event.reason;
+        var message = reason && reason.message ? reason.message : String(reason || "Unhandled widget promise rejection");
+        if (/chatbot|widget|shadowRoot|data-bot-id|botId/i.test(message)) {
+          lastWidgetError = message;
+          if (window.console && console.error) console.error("[chatflow-index] widget promise error:", reason || event);
+        }
+      });
+
       var botId = getParam(["data-bot-id", "botId", "botID", "bot_id", "bot", "chatbotId", "chatbot_id"]);
       var chatbotToken = getParam(["data-chatbot-token", "chatbotToken", "chatbot_token", "widgetToken", "widget_token", "token", "data-token", "data-widget-token"]);
-      var headerImageRadius = resolveHeaderImageRadius();
 
       if (!botId) {
         showError("Bot ID missing. Use ?botId=YOUR_BOT_ID in the index.html URL.");
         return;
       }
 
-      var script = document.createElement("script");
-      script.src = getParam(["widgetSrc", "scriptSrc"]) || STABLE_WIDGET_SRC;
-      script.async = true;
-
-      script.setAttribute("data-bot-id", botId);
-      copyParamToData(script, ["data-chat-id", "chatID", "chatId", "chat_id", "chat"], "data-chat-id");
-      copyParamToData(script, ["data-api-host", "apiHost", "api_host", "dataApiHost"], "data-api-host", DEFAULT_API_HOST);
-      copyParamToData(script, ["data-chatbot-token", "chatbotToken", "chatbot_token", "widgetToken", "widget_token", "token", "data-token", "data-widget-token"], "data-chatbot-token", chatbotToken);
-      copyParamToData(script, ["data-stream-api-url", "streamApiUrl", "stream_api_url", "chatApiUrl", "chat_api_url"], "data-stream-api-url", DEFAULT_STREAM_URL);
-
-      var bubbleVersion = resolveBubbleVersion();
-      if (bubbleVersion) script.setAttribute("data-bubble-version", bubbleVersion);
-
-      copyParamToData(script, ["data-position", "position"], "data-position");
-
-      var themeConfig = getParam(["data-theme-config", "themeConfig", "theme_config"]);
-      if (themeConfig) script.setAttribute("data-theme-config", themeConfig);
-      else if (iframeMode) script.setAttribute("data-theme-config", JSON.stringify({ autoOpen: true }));
-
-      script.onload = function () { waitForWidgetHost(botId); };
-      script.onerror = function () { showError("Unable to load chatbot-widget.js."); };
-      document.body.appendChild(script);
+      loadWidget(false);
 
       function waitForWidgetHost(currentBotId) {
         var attempts = 0;
@@ -139,52 +188,20 @@
             window.clearInterval(timer);
             if (loader) loader.style.display = "none";
             if (iframeMode) forceIframeLayout(host);
-          } else if (attempts >= 100) {
+          } else if (attempts >= 120) {
             window.clearInterval(timer);
-            showError("Chatbot loaded, but the widget host was not created. Check botId and chatbotToken.");
+            if (!retryStarted) {
+              retryWithLocalWidget();
+              return;
+            }
+            if (window.console && console.warn) console.warn("[chatflow-index] Widget host was not created", {
+              botId: currentBotId,
+              initState: window.__chatbotWidgetInitState,
+              lastWidgetError: lastWidgetError
+            });
+            showError("Chatbot loaded, but the widget host was not created." + (lastWidgetError ? " Error: " + lastWidgetError : "") + " Check botId and chatbotToken.");
           }
         }, 100);
-      }
-
-      function resizeTextarea(textarea) {
-        if (!textarea) return;
-        var minHeight = window.matchMedia("(max-width: 420px)").matches ? 38 : window.matchMedia("(max-width: 767px)").matches ? 40 : 42;
-        var maxHeight = window.matchMedia("(max-width: 767px)").matches ? 104 : 110;
-        textarea.style.height = minHeight + "px";
-        var nextHeight = Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight));
-        textarea.style.height = nextHeight + "px";
-        textarea.style.overflowY = textarea.scrollHeight > maxHeight ? "auto" : "hidden";
-        var composer = textarea.closest ? textarea.closest(".composer") : null;
-        if (composer) composer.setAttribute("data-multiline", nextHeight > minHeight + 4 ? "true" : "false");
-      }
-
-      function attachInputResize(root) {
-        var textarea = root.querySelector(".composer textarea");
-        if (!textarea || textarea.__chatflowIframeResizeAttached) return;
-        textarea.__chatflowIframeResizeAttached = true;
-        textarea.setAttribute("rows", "1");
-        resizeTextarea(textarea);
-        textarea.addEventListener("input", function () { resizeTextarea(textarea); });
-        textarea.addEventListener("change", function () { resizeTextarea(textarea); });
-        textarea.addEventListener("keydown", function () { window.setTimeout(function () { resizeTextarea(textarea); }, 0); });
-        window.addEventListener("resize", function () { resizeTextarea(textarea); });
-      }
-
-      function styleBrandingText(root) {
-        var link = root.querySelector(".branding a");
-        if (!link || link.__chatflowBrandStyled) return;
-        var text = String(link.textContent || "").trim();
-        if (!text) return;
-        var compact = text.replace(/Chatflow\s+AI/g, "ChatflowAI");
-        if (compact.indexOf("ChatflowAI") === -1) return;
-        link.textContent = "";
-        var before = compact.split("ChatflowAI")[0];
-        if (before) link.appendChild(document.createTextNode(before));
-        var brand = document.createElement("span");
-        brand.className = "chatflow-brand-text";
-        brand.textContent = "ChatflowAI";
-        link.appendChild(brand);
-        link.__chatflowBrandStyled = true;
       }
 
       function forceIframeLayout(host) {
@@ -211,7 +228,7 @@
           ".launcher{display:none!important}",
           ".chat-container{height:100%!important;min-height:0!important;border-radius:20px!important;overflow:hidden!important}",
           ".chat-header{position:relative!important;overflow:visible!important}",
-          ".chat-header .avatar,.avatar{width:48px!important;height:48px!important;min-width:48px!important;flex:0 0 48px!important;border-radius:" + headerImageRadius + "!important;background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important;background-color:transparent!important;box-shadow:none!important}",
+          ".chat-header .avatar,.avatar{width:48px!important;height:48px!important;min-width:48px!important;flex:0 0 48px!important;border-radius:999px!important;background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important;background-color:transparent!important;box-shadow:none!important}",
           ".chat-header .avatar img,.avatar img,.launcher img,img{background:transparent!important;background-color:transparent!important;box-shadow:none!important}",
           ".chat-header .title,.title{font-size:18px!important;font-weight:800!important;line-height:1.2!important;letter-spacing:-0.01em!important}",
           ".chat-header .clear-btn,.chat-header .close-btn{display:none!important}",
@@ -219,11 +236,8 @@
           ".prompts,.prompts[data-hidden='true']{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;border:0!important;overflow:hidden!important}",
           ".composer{position:relative!important;display:block!important;flex:0 0 auto!important;padding:8px 12px 12px 12px!important;border-top:0!important;border-bottom:0!important;background:#fff!important;margin-top:0!important;box-sizing:border-box!important;font-family:inherit!important;font-size:inherit!important;box-shadow:none!important}",
           ".composer textarea{box-sizing:border-box!important;width:100%!important;min-height:42px!important;height:42px;max-height:110px!important;padding:10px 58px 10px 14px!important;border:1px solid #d1d5db!important;border-radius:999px!important;font:inherit!important;font-family:inherit!important;font-size:inherit!important;line-height:1.35!important;resize:none!important;outline:none!important;overflow-y:hidden!important;display:block!important;background:#fff!important}",
-          ".send-btn{position:absolute!important;right:19px!important;top:29px!important;bottom:auto!important;transform:translateY(-50%)!important;box-sizing:border-box!important;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important;padding:0!important;border:0!important;border-radius:999px!important;background:var(--chatbot-primary,#2563eb)!important;color:#fff!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:0!important;line-height:1!important;box-shadow:none!important;text-indent:0!important;overflow:hidden!important}",
+          ".send-btn{position:absolute!important;right:19px!important;top:29px!important;bottom:auto!important;transform:translateY(-50%)!important;box-sizing:border-box!important;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important;padding:0!important;border:0!important;border-radius:999px!important;background:var(--chatbot-primary,#2563eb)!important;color:#fff!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:12px!important;line-height:1!important;box-shadow:none!important;text-indent:0!important;overflow:hidden!important}",
           ".composer[data-multiline='true'] .send-btn{top:auto!important;bottom:19px!important;transform:none!important}",
-          ".send-btn::before{content:''!important;width:15px!important;height:15px!important;display:block!important;background-image:url('" + LIGHT_SEND_ICON + "')!important;background-repeat:no-repeat!important;background-position:center!important;background-size:15px 15px!important}",
-          ".widget-root[data-theme='dark'] .send-btn::before{background-image:url('" + DARK_SEND_ICON + "')!important}",
-          ".send-btn::after{content:none!important;display:none!important}",
           ".branding{display:none!important;text-align:center!important;padding:8px 12px!important;font-size:12px!important;border-top:0!important;border-bottom:0!important;background:#fff!important;font-family:inherit!important;box-shadow:none!important}",
           ".branding[data-visible='true']{display:block!important}",
           ".branding a{color:#64748b!important;text-decoration:none!important;font-weight:400!important}",
@@ -231,18 +245,14 @@
           ".widget-root[data-theme='dark'] .composer{background:#111827!important;color:#f9fafb!important}",
           ".widget-root[data-theme='dark'] .branding{background:#111827!important;color:#f9fafb!important}",
           ".widget-root[data-theme='dark'] .composer textarea{background:#1f2937!important;color:#f9fafb!important;border-color:#374151!important}",
-          "@media(max-width:767px){:host{border-radius:16px!important}.widget-root{border-radius:16px!important}.chat-panel,.panel,.chat-container{border-radius:16px!important}.chat-header .avatar,.avatar{width:44px!important;height:44px!important;min-width:44px!important;flex-basis:44px!important}.chat-header .title,.title{font-size:17px!important;font-weight:800!important;line-height:1.2!important}.composer{padding:8px 10px 10px!important}.composer textarea{min-height:40px!important;height:40px!important;max-height:104px!important;padding:9px 50px 9px 12px!important}.send-btn{right:15px!important;top:28px!important;width:26px!important;height:26px!important;min-width:26px!important;max-width:26px!important}.send-btn::before{width:14px!important;height:14px!important;background-size:14px 14px!important}.composer[data-multiline='true'] .send-btn{bottom:17px!important}}",
-          "@media(max-width:420px){:host{border-radius:14px!important}.widget-root{border-radius:14px!important}.chat-panel,.panel,.chat-container{border-radius:14px!important}.chat-header .title,.title{font-size:16px!important}.composer{padding:7px 8px 9px!important}.composer textarea{min-height:38px!important;height:38px!important;padding:8px 46px 8px 12px!important}.send-btn{right:13px!important;top:26px!important;width:24px!important;height:24px!important;min-width:24px!important;max-width:24px!important}.send-btn::before{width:13px!important;height:13px!important;background-size:13px 13px!important}.composer[data-multiline='true'] .send-btn{bottom:16px!important}}"
+          "@media(max-width:767px){:host{border-radius:16px!important}.widget-root{border-radius:16px!important}.chat-panel,.panel,.chat-container{border-radius:16px!important}.chat-header .avatar,.avatar{width:44px!important;height:44px!important;min-width:44px!important;flex-basis:44px!important}.chat-header .title,.title{font-size:17px!important;font-weight:800!important;line-height:1.2!important}.composer{padding:8px 10px 10px!important}.composer textarea{min-height:40px!important;height:40px!important;max-height:104px!important;padding:9px 50px 9px 12px!important}.send-btn{right:15px!important;top:28px!important;width:26px!important;height:26px!important;min-width:26px!important;max-width:26px!important}.composer[data-multiline='true'] .send-btn{bottom:17px!important}}",
+          "@media(max-width:420px){:host{border-radius:14px!important}.widget-root{border-radius:14px!important}.chat-panel,.panel,.chat-container{border-radius:14px!important}.chat-header .title,.title{font-size:16px!important}.composer{padding:7px 8px 9px!important}.composer textarea{min-height:38px!important;height:38px!important;padding:8px 46px 8px 12px!important}.send-btn{right:13px!important;top:26px!important;width:24px!important;height:24px!important;min-width:24px!important;max-width:24px!important}.composer[data-multiline='true'] .send-btn{bottom:16px!important}}"
         ].join("\n");
         root.appendChild(style);
 
         function keepOpen() {
           var widgetRoot = root.querySelector(".widget-root");
-          var input = root.querySelector(".composer textarea");
           if (widgetRoot) widgetRoot.setAttribute("data-open", "true");
-          attachInputResize(root);
-          styleBrandingText(root);
-          if (input) resizeTextarea(input);
         }
 
         keepOpen();
