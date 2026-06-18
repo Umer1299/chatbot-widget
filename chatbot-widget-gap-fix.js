@@ -16,6 +16,24 @@
     return window.matchMedia && window.matchMedia("(max-width: 767px)").matches ? 104 : 110;
   }
 
+  function getConfiguredIconBgColor() {
+    var names = [
+      "data-icon-bg-color",
+      "data-icon-background-color",
+      "data-icon-background",
+      "data-avatar-bg-color",
+      "data-avatar-background-color"
+    ];
+    var scripts = document.getElementsByTagName("script");
+    for (var i = scripts.length - 1; i >= 0; i -= 1) {
+      for (var j = 0; j < names.length; j += 1) {
+        var value = scripts[i].getAttribute(names[j]);
+        if (value && String(value).trim()) return String(value).trim();
+      }
+    }
+    return "";
+  }
+
   function resizeTextarea(textarea) {
     if (!textarea) return;
     var minHeight = getMinHeight();
@@ -66,6 +84,34 @@
     link.appendChild(brandSpan);
 
     if (index + brand.length < text.length) link.appendChild(document.createTextNode(text.slice(index + brand.length)));
+  }
+
+  function applyIconBackground(root) {
+    var color = getConfiguredIconBgColor();
+    if (!color || !root || !root.querySelector) return;
+
+    var avatar = root.querySelector(".avatar");
+    var launcher = root.querySelector(".launcher");
+    var widgetRoot = root.querySelector(".widget-root");
+    var launcherImg = launcher ? launcher.querySelector("img") : null;
+    var isOpen = widgetRoot && widgetRoot.getAttribute("data-open") === "true";
+
+    if (avatar) {
+      avatar.style.backgroundColor = color;
+      avatar.style.backgroundSize = "contain";
+      avatar.style.backgroundRepeat = "no-repeat";
+      avatar.style.backgroundPosition = "center";
+    }
+
+    if (launcher && !isOpen) {
+      launcher.style.background = color;
+      launcher.style.backgroundColor = color;
+    }
+
+    if (launcherImg) {
+      launcherImg.style.background = color;
+      launcherImg.style.backgroundColor = color;
+    }
   }
 
   function forceInlineStyles(root) {
@@ -125,6 +171,7 @@
     }
 
     styleBrandingText(root);
+    applyIconBackground(root);
   }
 
   function installFix(root) {
@@ -144,6 +191,8 @@
         ".branding{flex:0 0 auto!important;padding:5px 12px!important}",
         ".branding a{color:#64748b!important;text-decoration:none!important;font-weight:400!important}",
         ".branding a .chatflow-brand-text{color:#0949c7!important;font-weight:800!important}",
+        ".avatar{background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important}",
+        ".launcher img{background-size:cover!important;background-position:center!important}",
         ".send-btn{position:absolute!important;right:19px!important;top:29px!important;bottom:auto!important;transform:translateY(-50%)!important;box-sizing:border-box!important;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important;padding:0!important;border:0!important;border-radius:999px!important;background:var(--chatbot-primary,#2563eb)!important;color:#fff!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:0!important;line-height:1!important;box-shadow:none!important;text-indent:-9999px!important;overflow:hidden!important}",
         ".composer[data-multiline='true'] .send-btn{top:auto!important;bottom:19px!important;transform:none!important}",
         ".send-btn::before{content:''!important;width:15px!important;height:15px!important;display:block!important;background-image:url('" + LIGHT_SEND_ICON + "')!important;background-repeat:no-repeat!important;background-position:center!important;background-size:15px 15px!important;transform:translateY(0)!important;text-indent:0!important}",
