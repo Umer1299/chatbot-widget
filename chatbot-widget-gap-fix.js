@@ -42,6 +42,32 @@
     resizeTextarea(textarea);
   }
 
+  function styleBrandingText(root) {
+    var link = root && root.querySelector ? root.querySelector(".branding a") : null;
+    if (!link || link.querySelector(".chatflow-brand-text")) return;
+
+    var text = link.textContent || "";
+    var brand = "Chatflow AI";
+    var index = text.indexOf(brand);
+    if (index === -1) return;
+
+    link.textContent = "";
+    link.style.color = "#64748b";
+    link.style.fontWeight = "400";
+    link.style.textDecoration = "none";
+
+    if (index > 0) link.appendChild(document.createTextNode(text.slice(0, index)));
+
+    var brandSpan = document.createElement("span");
+    brandSpan.className = "chatflow-brand-text";
+    brandSpan.textContent = brand;
+    brandSpan.style.color = "#0949c7";
+    brandSpan.style.fontWeight = "800";
+    link.appendChild(brandSpan);
+
+    if (index + brand.length < text.length) link.appendChild(document.createTextNode(text.slice(index + brand.length)));
+  }
+
   function forceInlineStyles(root) {
     var sendBtn = root.querySelector(".send-btn");
     var textarea = root.querySelector(".composer textarea");
@@ -97,6 +123,8 @@
       icons[i].style.padding = "0";
       icons[i].style.margin = "0";
     }
+
+    styleBrandingText(root);
   }
 
   function installFix(root) {
@@ -114,6 +142,8 @@
         ".composer{position:relative!important;flex:0 0 auto!important;margin-top:0!important;display:block!important;padding:8px 12px 12px!important;background:#fff!important;border-top:0!important;box-sizing:border-box!important}",
         ".composer textarea{box-sizing:border-box!important;width:100%!important;min-height:42px!important;height:42px;max-height:110px!important;padding:10px 58px 10px 14px!important;border:1px solid #d1d5db!important;border-radius:999px!important;line-height:1.35!important;overflow-y:hidden!important;resize:none!important;scrollbar-width:thin!important;display:block!important;background:#fff!important}",
         ".branding{flex:0 0 auto!important;padding:5px 12px!important}",
+        ".branding a{color:#64748b!important;text-decoration:none!important;font-weight:400!important}",
+        ".branding a .chatflow-brand-text{color:#0949c7!important;font-weight:800!important}",
         ".send-btn{position:absolute!important;right:19px!important;top:29px!important;bottom:auto!important;transform:translateY(-50%)!important;box-sizing:border-box!important;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important;padding:0!important;border:0!important;border-radius:999px!important;background:var(--chatbot-primary,#2563eb)!important;color:#fff!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:0!important;line-height:1!important;box-shadow:none!important;text-indent:-9999px!important;overflow:hidden!important}",
         ".composer[data-multiline='true'] .send-btn{top:auto!important;bottom:19px!important;transform:none!important}",
         ".send-btn::before{content:''!important;width:15px!important;height:15px!important;display:block!important;background-image:url('" + LIGHT_SEND_ICON + "')!important;background-repeat:no-repeat!important;background-position:center!important;background-size:15px 15px!important;transform:translateY(0)!important;text-indent:0!important}",
