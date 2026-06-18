@@ -254,9 +254,26 @@
         ].join("\n");
         root.appendChild(style);
 
+        function styleBrandingText() {
+          var link = root.querySelector(".branding a");
+          if (!link || link.querySelector(".chatflow-brand-text")) return;
+          var text = link.textContent || "";
+          var brand = "Chatflow AI";
+          var index = text.indexOf(brand);
+          if (index === -1) return;
+          link.textContent = "";
+          if (index > 0) link.appendChild(document.createTextNode(text.slice(0, index)));
+          var brandSpan = document.createElement("span");
+          brandSpan.className = "chatflow-brand-text";
+          brandSpan.textContent = brand;
+          link.appendChild(brandSpan);
+          if (index + brand.length < text.length) link.appendChild(document.createTextNode(text.slice(index + brand.length)));
+        }
+
         function keepOpen() {
           var widgetRoot = root.querySelector(".widget-root");
           if (widgetRoot) widgetRoot.setAttribute("data-open", "true");
+          styleBrandingText();
         }
 
         keepOpen();
@@ -264,6 +281,11 @@
         window.setTimeout(keepOpen, 750);
         window.setTimeout(keepOpen, 1500);
         window.setTimeout(keepOpen, 3000);
+
+        if (window.MutationObserver) {
+          var brandingObserver = new MutationObserver(styleBrandingText);
+          brandingObserver.observe(root, { childList: true, subtree: true, characterData: true });
+        }
       }
     })();
   </script>
