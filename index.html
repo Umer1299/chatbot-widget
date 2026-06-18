@@ -80,6 +80,48 @@
         return value;
       }
 
+      function installCreateChatSaveCorsBypass() {
+        if (!window.fetch || window.__chatflowCreateChatSaveCorsBypass) return;
+        window.__chatflowCreateChatSaveCorsBypass = true;
+        var nativeFetch = window.fetch.bind(window);
+
+        window.fetch = function (input, init) {
+          var url = typeof input === "string" ? input : (input && input.url) || "";
+          var options = init || {};
+          var method = String(options.method || (input && input.method) || "GET").toUpperCase();
+
+          if (method === "POST" && url.indexOf("/api/1.1/wf/create-chat") !== -1 && options && options.body) {
+            try {
+              var rawBody = typeof options.body === "string" ? options.body : "";
+              var payload = rawBody ? JSON.parse(rawBody) : null;
+
+              if (payload && (payload.botMessage !== undefined || payload.userMessage !== undefined || payload.timestamp !== undefined)) {
+                var formBody = new URLSearchParams();
+                Object.keys(payload).forEach(function (key) {
+                  if (payload[key] !== undefined && payload[key] !== null) formBody.append(key, String(payload[key]));
+                });
+
+                return nativeFetch(url, {
+                  method: "POST",
+                  mode: "no-cors",
+                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                  body: formBody.toString()
+                }).then(function () {
+                  if (typeof Response === "function") return new Response("", { status: 200, statusText: "OK" });
+                  return { ok: true, status: 200, json: function () { return Promise.resolve({}); } };
+                });
+              }
+            } catch (error) {
+              if (window.console && console.warn) console.warn("[chatflow-index] CORS save bypass skipped", error);
+            }
+          }
+
+          return nativeFetch(input, init);
+        };
+      }
+
+      installCreateChatSaveCorsBypass();
+
       function resolveBubbleVersion() {
         var explicit = getParam(["data-bubble-version", "bubbleVersion", "bubble_version", "version", "env", "mode", "bubbleEnv", "bubble_env", "data-env", "data-mode"]);
         if (explicit) return explicit;
