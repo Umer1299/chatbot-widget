@@ -267,9 +267,9 @@
         if (!root) return;
         var color = getPrimaryColor(root);
         if (!color) return;
-        host.style.setProperty("--chatflow-index-primary", color);
+        if (host.style.getPropertyValue("--chatflow-index-primary") !== color) host.style.setProperty("--chatflow-index-primary", color);
         var widgetRoot = root.querySelector(".widget-root");
-        if (widgetRoot) widgetRoot.style.setProperty("--chatflow-index-primary", color);
+        if (widgetRoot && widgetRoot.style.getPropertyValue("--chatflow-index-primary") !== color) widgetRoot.style.setProperty("--chatflow-index-primary", color);
       }
 
       function forceIframeLayout(host) {
@@ -357,24 +357,37 @@
           }
         }
 
-        function keepOpen() {
+        function applyStableLayout() {
           var widgetRoot = root.querySelector(".widget-root");
-          if (widgetRoot) widgetRoot.setAttribute("data-open", "true");
+          if (widgetRoot && widgetRoot.getAttribute("data-open") !== "true") widgetRoot.setAttribute("data-open", "true");
           syncPrimaryColor(host);
           styleBrandingText();
           alignSendButton();
         }
 
-        keepOpen();
-        window.setTimeout(keepOpen, 250);
-        window.setTimeout(keepOpen, 750);
-        window.setTimeout(keepOpen, 1500);
-        window.setTimeout(keepOpen, 3000);
+        var scheduled = false;
+        function scheduleStableLayout() {
+          if (scheduled) return;
+          scheduled = true;
+          var run = function () {
+            scheduled = false;
+            applyStableLayout();
+          };
+          if (window.requestAnimationFrame) window.requestAnimationFrame(run);
+          else window.setTimeout(run, 50);
+        }
+
+        applyStableLayout();
+        window.setTimeout(scheduleStableLayout, 250);
+        window.setTimeout(scheduleStableLayout, 1000);
 
         if (window.MutationObserver) {
-          var observer = new MutationObserver(keepOpen);
-          observer.observe(root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["data-multiline", "style", "class", "data-open"] });
+          var observer = new MutationObserver(scheduleStableLayout);
+          observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-multiline", "data-open"] });
         }
+
+        root.addEventListener("input", scheduleStableLayout, true);
+        root.addEventListener("keydown", scheduleStableLayout, true);
       }
     })();
   </script>
