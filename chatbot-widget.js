@@ -1,5 +1,5 @@
 (function () {
-  var ORIGINAL_WIDGET_SRC = "https://cdn.jsdelivr.net/gh/Umer1299/chatbot-widget@d40d55d587090ef15a956c996791d25465a1f354/chatbot-widget.js";
+  var ORIGINAL_WIDGET_SRC = "https://cdn.jsdelivr.net/gh/Umer1299/chatbot-widget@67f09c2c76c3d25d5f7665118e466a2b9ae70a1f/chatbot-widget.js";
   var STYLE_ID = "chatbot-widget-bot-cta-layout-fix";
   var SCAN_INTERVAL_MS = 250;
   var MAX_SCAN_ATTEMPTS = 80;
