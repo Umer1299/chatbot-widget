@@ -341,6 +341,38 @@
           if (end < text.length) link.appendChild(document.createTextNode(text.slice(end)));
         }
 
+        function hideLeadDataFromMessages() {
+          var bubbles = root.querySelectorAll(".message.bot .bubble-msg,.message.bot .bubble,.bot .bubble-msg");
+          for (var i = 0; i < bubbles.length; i += 1) {
+            var bubble = bubbles[i];
+            var text = bubble.textContent || "";
+            var match = text.match(/\bLEAD_DATA\s*:/i);
+            if (!match) continue;
+
+            var cleanText = text.slice(0, match.index).trim();
+            if (bubble.getAttribute("data-lead-visible-text") === cleanText) continue;
+            bubble.setAttribute("data-lead-visible-text", cleanText);
+            bubble.innerHTML = "";
+
+            if (!cleanText) {
+              bubble.style.display = "none";
+              continue;
+            }
+
+            bubble.style.display = "";
+            cleanText.split(/\n{2,}/).forEach(function (paragraphText) {
+              var paragraph = paragraphText.trim();
+              if (!paragraph) return;
+              var p = document.createElement("p");
+              paragraph.split(/\n/).forEach(function (line, lineIndex) {
+                if (lineIndex > 0) p.appendChild(document.createElement("br"));
+                p.appendChild(document.createTextNode(line));
+              });
+              bubble.appendChild(p);
+            });
+          }
+        }
+
         function getDefaultTextareaHeight() {
           if (window.matchMedia && window.matchMedia("(max-width:767px)").matches) return 22;
           return 24;
@@ -401,6 +433,7 @@
           if (widgetRoot && widgetRoot.getAttribute("data-open") !== "true") widgetRoot.setAttribute("data-open", "true");
           syncPrimaryColor(host);
           styleBrandingText();
+          hideLeadDataFromMessages();
           resizeComposerInput();
           alignSendButton();
         }
@@ -423,7 +456,7 @@
 
         if (window.MutationObserver) {
           var observer = new MutationObserver(scheduleStableLayout);
-          observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-open"] });
+          observer.observe(root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["data-open"] });
         }
 
         root.addEventListener("input", scheduleStableLayout, true);
