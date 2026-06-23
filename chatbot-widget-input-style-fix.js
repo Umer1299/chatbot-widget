@@ -26,6 +26,55 @@
     if (end < text.length) link.appendChild(document.createTextNode(text.slice(end)));
   }
 
+  function setImportant(element, property, value) {
+    if (element && element.style && element.style.setProperty) {
+      element.style.setProperty(property, value, "important");
+    }
+  }
+
+  function alignSendButton(root) {
+    if (!root || !root.querySelector) return;
+
+    var composer = root.querySelector(".composer");
+    var sendBtn = root.querySelector(".send-btn");
+    if (!composer || !sendBtn) return;
+
+    var isMultiline = composer.getAttribute("data-multiline") === "true";
+    setImportant(sendBtn, "position", "absolute");
+    setImportant(sendBtn, "right", "10px");
+    setImportant(sendBtn, "width", "28px");
+    setImportant(sendBtn, "height", "28px");
+    setImportant(sendBtn, "min-width", "28px");
+    setImportant(sendBtn, "max-width", "28px");
+    setImportant(sendBtn, "display", "flex");
+    setImportant(sendBtn, "align-items", "center");
+    setImportant(sendBtn, "justify-content", "center");
+
+    if (isMultiline) {
+      setImportant(sendBtn, "top", "auto");
+      setImportant(sendBtn, "bottom", "8px");
+      setImportant(sendBtn, "transform", "none");
+    } else {
+      setImportant(sendBtn, "top", "50%");
+      setImportant(sendBtn, "bottom", "auto");
+      setImportant(sendBtn, "transform", "translateY(-50%)");
+    }
+  }
+
+  function watchComposer(root) {
+    if (!root || root.__chatflowInputObserverAttached) return;
+    root.__chatflowInputObserverAttached = true;
+
+    if (window.MutationObserver) {
+      var observer = new MutationObserver(function () { alignSendButton(root); });
+      observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-multiline", "style", "class"] });
+    }
+
+    root.addEventListener("input", function () { window.setTimeout(function () { alignSendButton(root); }, 0); }, true);
+    root.addEventListener("keydown", function () { window.setTimeout(function () { alignSendButton(root); }, 0); }, true);
+    root.addEventListener("click", function () { window.setTimeout(function () { alignSendButton(root); }, 0); }, true);
+  }
+
   function injectStyle(root) {
     if (!root || root.getElementById(STYLE_ID)) return;
 
@@ -52,6 +101,8 @@
   function patchRoot(root) {
     injectStyle(root);
     styleBrandingText(root);
+    alignSendButton(root);
+    watchComposer(root);
   }
 
   function scanWidgets() {
