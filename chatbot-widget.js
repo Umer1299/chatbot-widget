@@ -19,6 +19,94 @@
     }
   }
 
+  function parseJson(value, fallback) {
+    if (!value) return fallback;
+    try { return JSON.parse(value); }
+    catch (error) { return fallback; }
+  }
+
+  function getUrlParam(names) {
+    if (!window.URLSearchParams || !window.location) return "";
+    try {
+      var params = new URLSearchParams(window.location.search || "");
+      for (var i = 0; i < names.length; i += 1) {
+        var value = params.get(names[i]);
+        if (value !== null && String(value).trim() !== "") return String(value).trim();
+      }
+    } catch (error) {}
+    return "";
+  }
+
+  function normalizeFontSize(value) {
+    var raw = String(value || "").trim();
+    if (!raw) return "";
+    if (/^\d+(?:\.\d+)?$/.test(raw)) return raw + "px";
+    if (/^\d+(?:\.\d+)?(?:px|rem|em|%)$/i.test(raw)) return raw;
+    return "";
+  }
+
+  function normalizeCssColor(value) {
+    var raw = String(value || "").trim();
+    if (!raw) return "";
+    if (/^#[0-9a-f]{3,8}$/i.test(raw)) return raw;
+    if (/^(rgb|rgba|hsl|hsla)\([0-9\s,%.]+\)$/i.test(raw)) return raw;
+    return "";
+  }
+
+  function getThemeOverridesFromCurrentContext() {
+    var overrides = {};
+    var script = getCurrentScriptTag();
+    var themeConfig = parseJson(script && script.getAttribute ? script.getAttribute("data-theme-config") : "", {});
+    if (themeConfig && typeof themeConfig === "object") {
+      var configFontSize = normalizeFontSize(themeConfig.fontSize || themeConfig.font_size || themeConfig.chatFontSize || themeConfig.chat_font_size);
+      if (configFontSize) overrides.fontSize = configFontSize;
+      var configPrimaryColor = normalizeCssColor(themeConfig.primaryColor || themeConfig.primary_color || themeConfig.color);
+      if (configPrimaryColor) overrides.primaryColor = configPrimaryColor;
+      if (typeof themeConfig.fontFamily === "string" && themeConfig.fontFamily.trim()) overrides.fontFamily = themeConfig.fontFamily.trim();
+      if (String(themeConfig.theme || "").toLowerCase() === "dark") overrides.theme = "dark";
+      if (String(themeConfig.theme || "").toLowerCase() === "light") overrides.theme = "light";
+    }
+
+    var urlFontSize = normalizeFontSize(getUrlParam(["fontSize", "font_size", "chatFontSize", "chat_font_size", "textSize", "text_size"]));
+    if (urlFontSize) overrides.fontSize = urlFontSize;
+    var urlPrimaryColor = normalizeCssColor(getUrlParam(["primaryColor", "primary_color", "color"]));
+    if (urlPrimaryColor) overrides.primaryColor = urlPrimaryColor;
+    var urlFontFamily = getUrlParam(["fontFamily", "font_family"]);
+    if (urlFontFamily) overrides.fontFamily = urlFontFamily;
+    var urlTheme = String(getUrlParam(["theme"])).toLowerCase();
+    if (urlTheme === "dark" || urlTheme === "light") overrides.theme = urlTheme;
+
+    return overrides;
+  }
+
+  function applyThemeOverridesToConfig(target, overrides) {
+    if (!target || typeof target !== "object" || !overrides) return target;
+    if (overrides.fontSize) target.fontSize = overrides.fontSize;
+    if (overrides.primaryColor) target.primaryColor = overrides.primaryColor;
+    if (overrides.fontFamily) target.fontFamily = overrides.fontFamily;
+    if (overrides.theme) target.theme = overrides.theme;
+    return target;
+  }
+
+  function applyThemeOverridesToDom(root, overrides) {
+    if (!root || !overrides) return;
+    var host = root.host;
+    var widgetRoot = root.querySelector && root.querySelector(".widget-root");
+    if (overrides.fontSize) {
+      if (host && host.style) host.style.setProperty("--chatbot-font-size", overrides.fontSize);
+      if (widgetRoot && widgetRoot.style) widgetRoot.style.setProperty("--chatbot-font-size", overrides.fontSize);
+    }
+    if (overrides.primaryColor) {
+      if (host && host.style) host.style.setProperty("--chatbot-primary", overrides.primaryColor);
+      if (widgetRoot && widgetRoot.style) widgetRoot.style.setProperty("--chatbot-primary", overrides.primaryColor);
+    }
+    if (overrides.fontFamily) {
+      if (host && host.style) host.style.setProperty("--chatbot-font-family", overrides.fontFamily);
+      if (widgetRoot && widgetRoot.style) widgetRoot.style.setProperty("--chatbot-font-family", overrides.fontFamily);
+    }
+    if (overrides.theme && widgetRoot) widgetRoot.setAttribute("data-theme", overrides.theme);
+  }
+
   function decodePathForOriginalWidget(url) {
     var raw = String(url || "").trim();
     if (!raw) return "";
@@ -85,8 +173,13 @@
         if (!response || !response.clone || typeof Response !== "function") return response;
 
         return response.clone().json().then(function (data) {
+          var themeOverrides = getThemeOverridesFromCurrentContext();
           sanitizeConfigIconFields(data);
-          if (data && data.response) sanitizeConfigIconFields(data.response);
+          applyThemeOverridesToConfig(data, themeOverrides);
+          if (data && data.response) {
+            sanitizeConfigIconFields(data.response);
+            applyThemeOverridesToConfig(data.response, themeOverrides);
+          }
 
           return new Response(JSON.stringify(data), {
             status: response.status,
@@ -129,6 +222,9 @@
   function patchIconUrlRendering(root) {
     if (!root) return;
 
+    var themeOverrides = getThemeOverridesFromCurrentContext();
+    applyThemeOverridesToDom(root, themeOverrides);
+
     var images = root.querySelectorAll ? root.querySelectorAll(".launcher img,.avatar img") : [];
     for (var i = 0; i < images.length; i += 1) patchImageSrc(images[i]);
 
@@ -169,7 +265,9 @@
       ".message.bot .bot-cta{display:block!important;align-self:flex-start!important;flex:0 0 auto!important;margin:8px 0 0 0!important;max-width:82%!important;white-space:normal!important;text-align:center!important}",
       ".message.user{flex-direction:row!important;align-items:flex-end!important;justify-content:flex-end!important}",
       ".launcher img{object-fit:contain!important;background:transparent!important}",
-      ".avatar{background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important}"
+      ".avatar{background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important}",
+      ".widget-root .messages,.widget-root .bubble-msg,.widget-root .composer textarea,.widget-root .prompt,.widget-root .branding,.widget-root .branding a{font-size:var(--chatbot-font-size,14px)!important}",
+      ".widget-root .chat-header .title{font-size:calc(var(--chatbot-font-size,14px) + 4px)!important}"
     ].join("\n");
     root.appendChild(style);
   }
