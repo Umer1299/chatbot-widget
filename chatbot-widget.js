@@ -58,6 +58,18 @@
     return raw === "italic" || raw === "normal" ? raw : "";
   }
 
+  function isIframeLoaderContext() {
+    var script = getCurrentScriptTag();
+    var src = String((script && script.src) || "");
+    var path = String((window.location && window.location.pathname) || "");
+    return !!(
+      (script && script.getAttribute && script.getAttribute("data-chatflow-index-loader") === "true") ||
+      /\/chatbot-widget\/index\.html$/i.test(path) ||
+      /(^|\/)index\.html$/i.test(path) ||
+      src.indexOf("cf_cache=") !== -1
+    );
+  }
+
   function getThemeOverridesFromCurrentContext() {
     var overrides = {};
     var script = getCurrentScriptTag();
@@ -85,6 +97,8 @@
     var urlTheme = String(getUrlParam(["theme"])).toLowerCase();
     if (urlTheme === "dark" || urlTheme === "light") overrides.theme = urlTheme;
 
+    // Iframe embeds should look like the original chatbot-widget.js by default, not Bubble's saved serif font.
+    if (!overrides.fontFamily && isIframeLoaderContext()) overrides.fontFamily = "Inter, Arial, sans-serif";
     if (!overrides.fontStyle) overrides.fontStyle = "normal";
     return overrides;
   }
@@ -279,7 +293,7 @@
       ".message.user{flex-direction:row!important;align-items:flex-end!important;justify-content:flex-end!important}",
       ".launcher img{object-fit:contain!important;background:transparent!important}",
       ".avatar{background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important}",
-      ".widget-root,.widget-root *{font-family:var(--chatbot-font-family,Arial,sans-serif)!important;font-style:var(--chatbot-font-style,normal)!important}",
+      ".widget-root,.widget-root *{font-family:var(--chatbot-font-family,Inter,Arial,sans-serif)!important;font-style:var(--chatbot-font-style,normal)!important}",
       ".widget-root .messages,.widget-root .bubble-msg,.widget-root .bubble-msg p,.widget-root .composer textarea,.widget-root .prompt,.widget-root .branding,.widget-root .branding a{font-size:var(--chatbot-font-size,14px)!important;font-style:var(--chatbot-font-style,normal)!important}",
       ".widget-root em,.widget-root i{font-style:var(--chatbot-font-style,normal)!important}",
       ".widget-root .chat-header .title{font-size:calc(var(--chatbot-font-size,14px) + 4px)!important;font-style:normal!important}"
