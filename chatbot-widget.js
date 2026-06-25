@@ -1,6 +1,7 @@
 (function () {
   var ORIGINAL_WIDGET_SRC = "https://cdn.jsdelivr.net/gh/Umer1299/chatbot-widget@67f09c2c76c3d25d5f7665118e466a2b9ae70a1f/chatbot-widget.js";
   var STYLE_ID = "chatbot-widget-bot-cta-layout-fix";
+  var FONT_LINK_ID = "chatflow-inter-font-link";
   var SCAN_INTERVAL_MS = 250;
   var MAX_SCAN_ATTEMPTS = 120;
 
@@ -58,6 +59,36 @@
     return raw === "italic" || raw === "normal" ? raw : "";
   }
 
+  function normalizeFontFamily(value) {
+    var raw = String(value || "").trim();
+    if (!raw) return "";
+    raw = raw.replace(/^['\"]|['\"]$/g, "").trim();
+    if (!raw) return "";
+    if (/^inter$/i.test(raw)) return "Inter, Arial, sans-serif";
+    if (raw.indexOf(",") === -1 && !/\b(sans-serif|serif|monospace|cursive|fantasy|system-ui)\b/i.test(raw)) return raw + ", Arial, sans-serif";
+    return raw;
+  }
+
+  function installWebFontForFamily(fontFamily) {
+    var family = String(fontFamily || "");
+    if (!/\bInter\b/i.test(family)) return;
+    if (!document || !document.head || document.getElementById(FONT_LINK_ID)) return;
+    var preconnect1 = document.createElement("link");
+    preconnect1.rel = "preconnect";
+    preconnect1.href = "https://fonts.googleapis.com";
+    document.head.appendChild(preconnect1);
+    var preconnect2 = document.createElement("link");
+    preconnect2.rel = "preconnect";
+    preconnect2.href = "https://fonts.gstatic.com";
+    preconnect2.crossOrigin = "anonymous";
+    document.head.appendChild(preconnect2);
+    var link = document.createElement("link");
+    link.id = FONT_LINK_ID;
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap";
+    document.head.appendChild(link);
+  }
+
   function isIframeLoaderContext() {
     var script = getCurrentScriptTag();
     var src = String((script && script.src) || "");
@@ -79,7 +110,8 @@
       if (configFontSize) overrides.fontSize = configFontSize;
       var configPrimaryColor = normalizeCssColor(themeConfig.primaryColor || themeConfig.primary_color || themeConfig.color);
       if (configPrimaryColor) overrides.primaryColor = configPrimaryColor;
-      if (typeof themeConfig.fontFamily === "string" && themeConfig.fontFamily.trim()) overrides.fontFamily = themeConfig.fontFamily.trim();
+      var configFontFamily = normalizeFontFamily(themeConfig.fontFamily || themeConfig.font_family);
+      if (configFontFamily) overrides.fontFamily = configFontFamily;
       var configFontStyle = normalizeFontStyle(themeConfig.fontStyle || themeConfig.font_style);
       if (configFontStyle) overrides.fontStyle = configFontStyle;
       if (String(themeConfig.theme || "").toLowerCase() === "dark") overrides.theme = "dark";
@@ -90,16 +122,16 @@
     if (urlFontSize) overrides.fontSize = urlFontSize;
     var urlPrimaryColor = normalizeCssColor(getUrlParam(["primaryColor", "primary_color", "color"]));
     if (urlPrimaryColor) overrides.primaryColor = urlPrimaryColor;
-    var urlFontFamily = getUrlParam(["fontFamily", "font_family"]);
+    var urlFontFamily = normalizeFontFamily(getUrlParam(["fontFamily", "font_family"]));
     if (urlFontFamily) overrides.fontFamily = urlFontFamily;
     var urlFontStyle = normalizeFontStyle(getUrlParam(["fontStyle", "font_style"]));
     if (urlFontStyle) overrides.fontStyle = urlFontStyle;
     var urlTheme = String(getUrlParam(["theme"])).toLowerCase();
     if (urlTheme === "dark" || urlTheme === "light") overrides.theme = urlTheme;
 
-    // Iframe embeds should look like the original chatbot-widget.js by default, not Bubble's saved serif font.
     if (!overrides.fontFamily && isIframeLoaderContext()) overrides.fontFamily = "Inter, Arial, sans-serif";
     if (!overrides.fontStyle) overrides.fontStyle = "normal";
+    installWebFontForFamily(overrides.fontFamily);
     return overrides;
   }
 
@@ -107,7 +139,7 @@
     if (!target || typeof target !== "object" || !overrides) return target;
     if (overrides.fontSize) target.fontSize = overrides.fontSize;
     if (overrides.primaryColor) target.primaryColor = overrides.primaryColor;
-    if (overrides.fontFamily) target.fontFamily = overrides.fontFamily;
+    if (overrides.fontFamily) target.fontFamily = normalizeFontFamily(overrides.fontFamily);
     if (overrides.fontStyle) target.fontStyle = overrides.fontStyle;
     if (overrides.theme) target.theme = overrides.theme;
     return target;
@@ -126,8 +158,10 @@
       if (widgetRoot && widgetRoot.style) widgetRoot.style.setProperty("--chatbot-primary", overrides.primaryColor);
     }
     if (overrides.fontFamily) {
-      if (host && host.style) host.style.setProperty("--chatbot-font-family", overrides.fontFamily);
-      if (widgetRoot && widgetRoot.style) widgetRoot.style.setProperty("--chatbot-font-family", overrides.fontFamily);
+      var normalizedFamily = normalizeFontFamily(overrides.fontFamily);
+      installWebFontForFamily(normalizedFamily);
+      if (host && host.style) host.style.setProperty("--chatbot-font-family", normalizedFamily);
+      if (widgetRoot && widgetRoot.style) widgetRoot.style.setProperty("--chatbot-font-family", normalizedFamily);
     }
     if (overrides.fontStyle) {
       if (host && host.style) host.style.setProperty("--chatbot-font-style", overrides.fontStyle);
@@ -328,6 +362,7 @@
 
   function loadOriginalWidget() {
     installConfigIconUrlSanitizer();
+    installWebFontForFamily("Inter, Arial, sans-serif");
     var current = getCurrentScriptTag();
     var script = document.createElement("script");
     copyAttributes(current, script);
