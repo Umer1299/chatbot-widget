@@ -2,7 +2,7 @@
   var ORIGINAL_WIDGET_SRC = "https://cdn.jsdelivr.net/gh/Umer1299/chatbot-widget@67f09c2c76c3d25d5f7665118e466a2b9ae70a1f/chatbot-widget.js";
   var STYLE_ID = "chatbot-widget-bot-cta-layout-fix";
   var SCAN_INTERVAL_MS = 250;
-  var MAX_SCAN_ATTEMPTS = 80;
+  var MAX_SCAN_ATTEMPTS = 120;
 
   function getCurrentScriptTag() {
     if (document.currentScript && document.currentScript.tagName === "SCRIPT") return document.currentScript;
@@ -19,16 +19,18 @@
     }
   }
 
-  function cleanIconUrl(url) {
+  function decodePathForOriginalWidget(url) {
     var raw = String(url || "").trim();
     if (!raw) return "";
 
-    raw = raw.replace(/&amp;/g, "&");
+    raw = raw.replace(/&amp;/g, "&").replace(/^['\"]|['\"]$/g, "").trim();
     var cssMatch = raw.match(/^url\((['\"]?)(.*?)\1\)$/i);
     if (cssMatch && cssMatch[2]) raw = cssMatch[2].trim();
-    raw = raw.replace(/^['\"]|['\"]$/g, "").trim();
 
     if (!raw || raw.indexOf("data:") === 0 || raw.indexOf("blob:") === 0) return raw;
+
+    // If the previous widget already produced %2520, first make it %20.
+    raw = raw.replace(/%25/g, "%");
 
     var hash = "";
     var hashIndex = raw.indexOf("#");
@@ -38,26 +40,64 @@
     }
 
     var queryIndex = raw.indexOf("?");
-    if (queryIndex === -1) return raw + hash;
+    var withoutQuery = queryIndex !== -1 ? raw.slice(0, queryIndex) : raw;
 
-    var base = raw.slice(0, queryIndex);
-    var query = raw.slice(queryIndex + 1);
-
-    // Bubble CDN copied URLs often include _gl/_ga tracking params that break external widget rendering.
-    // For Bubble-hosted uploaded icons, the direct file URL is the stable image URL.
-    if (/\.cdn\.bubble\.io\//i.test(base)) return base + hash;
-
-    if (typeof URL === "function") {
+    // Bubble copied CDN URLs include _gl/_ga params. Remove all query params for Bubble uploads.
+    if (/\.cdn\.bubble\.io\//i.test(withoutQuery)) {
       try {
-        var parsed = new URL(raw, window.location && window.location.href ? window.location.href : undefined);
-        var trackingParams = ["_gl", "_ga", "_gid", "_gcl_au", "gclid", "fbclid"];
-        for (var i = 0; i < trackingParams.length; i += 1) parsed.searchParams.delete(trackingParams[i]);
-        return parsed.toString();
-      } catch (error) {}
+        var parsed = new URL(withoutQuery, window.location && window.location.href ? window.location.href : undefined);
+        return parsed.origin + decodeURIComponent(parsed.pathname) + hash;
+      } catch (error) {
+        try { return decodeURIComponent(withoutQuery) + hash; }
+        catch (decodeError) { return withoutQuery + hash; }
+      }
     }
 
-    if (/(^|&)_(gl|ga|gid|gcl_au)=/i.test(query) || /(^|&)(gclid|fbclid)=/i.test(query)) return base + hash;
-    return raw + hash;
+    try { return decodeURIComponent(withoutQuery) + hash; }
+    catch (error2) { return withoutQuery + hash; }
+  }
+
+  function cleanRenderedIconUrl(url) {
+    var decoded = decodePathForOriginalWidget(url);
+    if (!decoded || decoded.indexOf("data:") === 0 || decoded.indexOf("blob:") === 0) return decoded;
+    return decoded.replace(/ /g, "%20").replace(/\"/g, "%22");
+  }
+
+  function sanitizeConfigIconFields(target) {
+    if (!target || typeof target !== "object") return target;
+    var iconFields = ["iconUrl", "iconURL", "icon", "avatar", "chatIcon", "launcherIcon"];
+    for (var i = 0; i < iconFields.length; i += 1) {
+      var field = iconFields[i];
+      if (typeof target[field] === "string" && target[field].trim()) target[field] = decodePathForOriginalWidget(target[field]);
+    }
+    return target;
+  }
+
+  function installConfigIconUrlSanitizer() {
+    if (!window.fetch || window.__chatflowIconConfigSanitizer) return;
+    window.__chatflowIconConfigSanitizer = true;
+    var nativeFetch = window.fetch.bind(window);
+
+    window.fetch = function (input, init) {
+      var requestUrl = typeof input === "string" ? input : (input && input.url) || "";
+      return nativeFetch(input, init).then(function (response) {
+        if (!requestUrl || requestUrl.indexOf("/api/1.1/wf/get-chatbot") === -1) return response;
+        if (!response || !response.clone || typeof Response !== "function") return response;
+
+        return response.clone().json().then(function (data) {
+          sanitizeConfigIconFields(data);
+          if (data && data.response) sanitizeConfigIconFields(data.response);
+
+          return new Response(JSON.stringify(data), {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers
+          });
+        }).catch(function () {
+          return response;
+        });
+      });
+    };
   }
 
   function escapeAttr(value) {
@@ -69,7 +109,7 @@
   }
 
   function setLauncherImage(launcher, url) {
-    var clean = cleanIconUrl(url);
+    var clean = cleanRenderedIconUrl(url);
     if (!launcher || !clean) return;
     launcher.style.background = "transparent";
     launcher.style.fontSize = "0";
@@ -79,10 +119,10 @@
   function patchImageSrc(img) {
     if (!img) return;
     var current = img.getAttribute("src") || img.src || "";
-    var clean = cleanIconUrl(current);
+    var clean = cleanRenderedIconUrl(current);
     if (clean && clean !== current) img.setAttribute("src", clean);
     if (!img.getAttribute("alt")) img.setAttribute("alt", "");
-    img.style.objectFit = img.closest && img.closest(".launcher") ? "contain" : (img.style.objectFit || "contain");
+    img.style.objectFit = "contain";
     img.style.background = "transparent";
   }
 
@@ -103,7 +143,7 @@
     for (var k = 0; k < avatars.length; k += 1) {
       var avatar = avatars[k];
       var styleBackground = avatar.style && avatar.style.backgroundImage ? avatar.style.backgroundImage : "";
-      var cleanBackground = cleanIconUrl(styleBackground);
+      var cleanBackground = cleanRenderedIconUrl(styleBackground);
       if (cleanBackground && cleanBackground !== styleBackground) {
         avatar.style.backgroundImage = 'url("' + cleanBackground.replace(/\"/g, "%22") + '")';
       }
@@ -114,7 +154,7 @@
       var avatarText = String(avatar.textContent || "").trim();
       if (looksLikeImageUrl(avatarText)) {
         avatar.textContent = "";
-        avatar.style.backgroundImage = 'url("' + cleanIconUrl(avatarText).replace(/\"/g, "%22") + '")';
+        avatar.style.backgroundImage = 'url("' + cleanRenderedIconUrl(avatarText).replace(/\"/g, "%22") + '")';
       }
     }
   }
@@ -160,6 +200,7 @@
   }
 
   function loadOriginalWidget() {
+    installConfigIconUrlSanitizer();
     var current = getCurrentScriptTag();
     var script = document.createElement("script");
     copyAttributes(current, script);
