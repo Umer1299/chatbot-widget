@@ -53,6 +53,11 @@
     return "";
   }
 
+  function normalizeFontStyle(value) {
+    var raw = String(value || "").trim().toLowerCase();
+    return raw === "italic" || raw === "normal" ? raw : "";
+  }
+
   function getThemeOverridesFromCurrentContext() {
     var overrides = {};
     var script = getCurrentScriptTag();
@@ -63,6 +68,8 @@
       var configPrimaryColor = normalizeCssColor(themeConfig.primaryColor || themeConfig.primary_color || themeConfig.color);
       if (configPrimaryColor) overrides.primaryColor = configPrimaryColor;
       if (typeof themeConfig.fontFamily === "string" && themeConfig.fontFamily.trim()) overrides.fontFamily = themeConfig.fontFamily.trim();
+      var configFontStyle = normalizeFontStyle(themeConfig.fontStyle || themeConfig.font_style);
+      if (configFontStyle) overrides.fontStyle = configFontStyle;
       if (String(themeConfig.theme || "").toLowerCase() === "dark") overrides.theme = "dark";
       if (String(themeConfig.theme || "").toLowerCase() === "light") overrides.theme = "light";
     }
@@ -73,9 +80,12 @@
     if (urlPrimaryColor) overrides.primaryColor = urlPrimaryColor;
     var urlFontFamily = getUrlParam(["fontFamily", "font_family"]);
     if (urlFontFamily) overrides.fontFamily = urlFontFamily;
+    var urlFontStyle = normalizeFontStyle(getUrlParam(["fontStyle", "font_style"]));
+    if (urlFontStyle) overrides.fontStyle = urlFontStyle;
     var urlTheme = String(getUrlParam(["theme"])).toLowerCase();
     if (urlTheme === "dark" || urlTheme === "light") overrides.theme = urlTheme;
 
+    if (!overrides.fontStyle) overrides.fontStyle = "normal";
     return overrides;
   }
 
@@ -84,6 +94,7 @@
     if (overrides.fontSize) target.fontSize = overrides.fontSize;
     if (overrides.primaryColor) target.primaryColor = overrides.primaryColor;
     if (overrides.fontFamily) target.fontFamily = overrides.fontFamily;
+    if (overrides.fontStyle) target.fontStyle = overrides.fontStyle;
     if (overrides.theme) target.theme = overrides.theme;
     return target;
   }
@@ -104,6 +115,10 @@
       if (host && host.style) host.style.setProperty("--chatbot-font-family", overrides.fontFamily);
       if (widgetRoot && widgetRoot.style) widgetRoot.style.setProperty("--chatbot-font-family", overrides.fontFamily);
     }
+    if (overrides.fontStyle) {
+      if (host && host.style) host.style.setProperty("--chatbot-font-style", overrides.fontStyle);
+      if (widgetRoot && widgetRoot.style) widgetRoot.style.setProperty("--chatbot-font-style", overrides.fontStyle);
+    }
     if (overrides.theme && widgetRoot) widgetRoot.setAttribute("data-theme", overrides.theme);
   }
 
@@ -117,7 +132,6 @@
 
     if (!raw || raw.indexOf("data:") === 0 || raw.indexOf("blob:") === 0) return raw;
 
-    // If the previous widget already produced %2520, first make it %20.
     raw = raw.replace(/%25/g, "%");
 
     var hash = "";
@@ -130,7 +144,6 @@
     var queryIndex = raw.indexOf("?");
     var withoutQuery = queryIndex !== -1 ? raw.slice(0, queryIndex) : raw;
 
-    // Bubble copied CDN URLs include _gl/_ga params. Remove all query params for Bubble uploads.
     if (/\.cdn\.bubble\.io\//i.test(withoutQuery)) {
       try {
         var parsed = new URL(withoutQuery, window.location && window.location.href ? window.location.href : undefined);
@@ -266,9 +279,10 @@
       ".message.user{flex-direction:row!important;align-items:flex-end!important;justify-content:flex-end!important}",
       ".launcher img{object-fit:contain!important;background:transparent!important}",
       ".avatar{background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important}",
-      ".widget-root,.widget-root *{font-family:var(--chatbot-font-family,Inter,Arial,sans-serif)!important}",
-      ".widget-root .messages,.widget-root .bubble-msg,.widget-root .composer textarea,.widget-root .prompt,.widget-root .branding,.widget-root .branding a{font-size:var(--chatbot-font-size,14px)!important}",
-      ".widget-root .chat-header .title{font-size:calc(var(--chatbot-font-size,14px) + 4px)!important}"
+      ".widget-root,.widget-root *{font-family:var(--chatbot-font-family,Arial,sans-serif)!important;font-style:var(--chatbot-font-style,normal)!important}",
+      ".widget-root .messages,.widget-root .bubble-msg,.widget-root .bubble-msg p,.widget-root .composer textarea,.widget-root .prompt,.widget-root .branding,.widget-root .branding a{font-size:var(--chatbot-font-size,14px)!important;font-style:var(--chatbot-font-style,normal)!important}",
+      ".widget-root em,.widget-root i{font-style:var(--chatbot-font-style,normal)!important}",
+      ".widget-root .chat-header .title{font-size:calc(var(--chatbot-font-size,14px) + 4px)!important;font-style:normal!important}"
     ].join("\n");
     root.appendChild(style);
   }
