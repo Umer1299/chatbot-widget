@@ -266,6 +266,7 @@
       ".message.user{flex-direction:row!important;align-items:flex-end!important;justify-content:flex-end!important}",
       ".launcher img{object-fit:contain!important;background:transparent!important}",
       ".avatar{background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important}",
+      ".widget-root,.widget-root *{font-family:var(--chatbot-font-family,Inter,Arial,sans-serif)!important}",
       ".widget-root .messages,.widget-root .bubble-msg,.widget-root .composer textarea,.widget-root .prompt,.widget-root .branding,.widget-root .branding a{font-size:var(--chatbot-font-size,14px)!important}",
       ".widget-root .chat-header .title{font-size:calc(var(--chatbot-font-size,14px) + 4px)!important}"
     ].join("\n");
