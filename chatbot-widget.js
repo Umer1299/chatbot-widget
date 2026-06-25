@@ -38,6 +38,15 @@
     return "";
   }
 
+  function getFirstValue(source, names) {
+    if (!source || typeof source !== "object") return "";
+    for (var i = 0; i < names.length; i += 1) {
+      var name = names[i];
+      if (source[name] !== undefined && source[name] !== null && String(source[name]).trim() !== "") return source[name];
+    }
+    return "";
+  }
+
   function normalizeFontSize(value) {
     var raw = String(value || "").trim();
     if (!raw) return "";
@@ -101,7 +110,37 @@
     );
   }
 
-  function getThemeOverridesFromCurrentContext() {
+  function getThemeOverridesFromRemoteConfig(remoteConfig) {
+    var overrides = {};
+    if (!remoteConfig || typeof remoteConfig !== "object") return overrides;
+
+    var fontFamily = normalizeFontFamily(getFirstValue(remoteConfig, [
+      "fontFamily", "font_family", "font-family", "Font Family", "font", "fontName", "font_name",
+      "chatFont", "chat_font", "chatFontFamily", "chat_font_family", "textFont", "text_font",
+      "bodyFont", "body_font", "widgetFont", "widget_font"
+    ]));
+    if (fontFamily) overrides.fontFamily = fontFamily;
+
+    var fontSize = normalizeFontSize(getFirstValue(remoteConfig, [
+      "fontSize", "font_size", "font-size", "Font Size", "chatFontSize", "chat_font_size",
+      "textSize", "text_size", "bodyFontSize", "body_font_size", "widgetFontSize", "widget_font_size"
+    ]));
+    if (fontSize) overrides.fontSize = fontSize;
+
+    var fontStyle = normalizeFontStyle(getFirstValue(remoteConfig, [
+      "fontStyle", "font_style", "font-style", "Font Style", "chatFontStyle", "chat_font_style"
+    ]));
+    if (fontStyle) overrides.fontStyle = fontStyle;
+
+    var primaryColor = normalizeCssColor(getFirstValue(remoteConfig, [
+      "primaryColor", "primary_color", "primary-color", "Primary Color", "color", "brandColor", "brand_color"
+    ]));
+    if (primaryColor) overrides.primaryColor = primaryColor;
+
+    return overrides;
+  }
+
+  function getThemeOverridesFromCurrentContext(includeIframeDefault) {
     var overrides = {};
     var script = getCurrentScriptTag();
     var themeConfig = parseJson(script && script.getAttribute ? script.getAttribute("data-theme-config") : "", {});
@@ -129,10 +168,26 @@
     var urlTheme = String(getUrlParam(["theme"])).toLowerCase();
     if (urlTheme === "dark" || urlTheme === "light") overrides.theme = urlTheme;
 
-    if (!overrides.fontFamily && isIframeLoaderContext()) overrides.fontFamily = "Inter, Arial, sans-serif";
+    if (includeIframeDefault && !overrides.fontFamily && isIframeLoaderContext()) overrides.fontFamily = "Inter, Arial, sans-serif";
     if (!overrides.fontStyle) overrides.fontStyle = "normal";
     installWebFontForFamily(overrides.fontFamily);
     return overrides;
+  }
+
+  function mergeThemeOverrides(baseOverrides, priorityOverrides) {
+    var merged = {};
+    baseOverrides = baseOverrides || {};
+    priorityOverrides = priorityOverrides || {};
+    var keys = ["fontSize", "primaryColor", "fontFamily", "fontStyle", "theme"];
+    for (var i = 0; i < keys.length; i += 1) {
+      var key = keys[i];
+      if (baseOverrides[key]) merged[key] = baseOverrides[key];
+      if (priorityOverrides[key]) merged[key] = priorityOverrides[key];
+    }
+    if (!merged.fontStyle) merged.fontStyle = "normal";
+    if (!merged.fontFamily && isIframeLoaderContext()) merged.fontFamily = "Inter, Arial, sans-serif";
+    installWebFontForFamily(merged.fontFamily);
+    return merged;
   }
 
   function applyThemeOverridesToConfig(target, overrides) {
@@ -234,13 +289,15 @@
         if (!response || !response.clone || typeof Response !== "function") return response;
 
         return response.clone().json().then(function (data) {
-          var themeOverrides = getThemeOverridesFromCurrentContext();
           sanitizeConfigIconFields(data);
-          applyThemeOverridesToConfig(data, themeOverrides);
-          if (data && data.response) {
-            sanitizeConfigIconFields(data.response);
-            applyThemeOverridesToConfig(data.response, themeOverrides);
-          }
+          if (data && data.response) sanitizeConfigIconFields(data.response);
+
+          var remoteTheme = mergeThemeOverrides(getThemeOverridesFromRemoteConfig(data), data && data.response ? getThemeOverridesFromRemoteConfig(data.response) : {});
+          var contextTheme = getThemeOverridesFromCurrentContext(false);
+          var finalTheme = mergeThemeOverrides(remoteTheme, contextTheme);
+
+          applyThemeOverridesToConfig(data, finalTheme);
+          if (data && data.response) applyThemeOverridesToConfig(data.response, finalTheme);
 
           return new Response(JSON.stringify(data), {
             status: response.status,
@@ -283,7 +340,7 @@
   function patchIconUrlRendering(root) {
     if (!root) return;
 
-    var themeOverrides = getThemeOverridesFromCurrentContext();
+    var themeOverrides = getThemeOverridesFromCurrentContext(true);
     applyThemeOverridesToDom(root, themeOverrides);
 
     var images = root.querySelectorAll ? root.querySelectorAll(".launcher img,.avatar img") : [];
