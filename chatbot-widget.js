@@ -1,10 +1,10 @@
 (function () {
   var ORIGINAL_WIDGET_SRC = "https://cdn.jsdelivr.net/gh/Umer1299/chatbot-widget@67f09c2c76c3d25d5f7665118e466a2b9ae70a1f/chatbot-widget.js";
-  var STYLE_ID = "chatbot-widget-exact-chatflow-layout-v3";
+  var STYLE_ID = "chatbot-widget-exact-chatflow-layout-v4";
   var FONT_LINK_ID = "chatflow-inter-font-link";
   var MAX_Z_INDEX = 2147483647;
-  var SCAN_INTERVAL_MS = 200;
-  var MAX_SCAN_ATTEMPTS = 220;
+  var SCAN_INTERVAL_MS = 80;
+  var MAX_SCAN_ATTEMPTS = 400;
   var DOWN_CHEVRON_SVG = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='12' viewBox='0 0 20 12' fill='none'%3E%3Cpath d='M3 3L10 9L17 3' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")";
 
   function getCurrentScriptTag() {
@@ -23,6 +23,25 @@
       if (!attr || attr.name === "src") continue;
       target.setAttribute(attr.name, attr.value);
     }
+  }
+
+  function normalizeCssColor(value) {
+    var raw = String(value || "").trim();
+    if (!raw) return "";
+    if (/^#[0-9a-f]{3,8}$/i.test(raw)) return raw;
+    if (/^(rgb|rgba|hsl|hsla)\([0-9\s,%.]+\)$/i.test(raw)) return raw;
+    return "";
+  }
+
+  function getIconBgColor() {
+    var script = getCurrentScriptTag();
+    if (!script || !script.getAttribute) return "";
+    return normalizeCssColor(
+      script.getAttribute("data-icon-bg-color") ||
+      script.getAttribute("data-launcher-bg-color") ||
+      script.getAttribute("data-button-bg-color") ||
+      ""
+    );
   }
 
   function installInterFont() {
@@ -53,10 +72,7 @@
     raw = raw.replace(/%25/g, "%");
     var hash = "";
     var hashIndex = raw.indexOf("#");
-    if (hashIndex !== -1) {
-      hash = raw.slice(hashIndex);
-      raw = raw.slice(0, hashIndex);
-    }
+    if (hashIndex !== -1) { hash = raw.slice(hashIndex); raw = raw.slice(0, hashIndex); }
     var queryIndex = raw.indexOf("?");
     var withoutQuery = queryIndex !== -1 ? raw.slice(0, queryIndex) : raw;
     if (/\.cdn\.bubble\.io\//i.test(withoutQuery)) {
@@ -92,11 +108,7 @@
           }
           sanitize(data);
           if (data && data.response) sanitize(data.response);
-          return new Response(JSON.stringify(data), {
-            status: response.status,
-            statusText: response.statusText,
-            headers: response.headers
-          });
+          return new Response(JSON.stringify(data), { status: response.status, statusText: response.statusText, headers: response.headers });
         }).catch(function () { return response; });
       });
     };
@@ -132,10 +144,7 @@
       if (bubble.getAttribute("data-lead-visible-text") === cleanText) continue;
       bubble.setAttribute("data-lead-visible-text", cleanText);
       bubble.innerHTML = "";
-      if (!cleanText) {
-        bubble.style.display = "none";
-        continue;
-      }
+      if (!cleanText) { bubble.style.display = "none"; continue; }
       bubble.style.display = "";
       cleanText.split(/\n{2,}/).forEach(function (paragraphText) {
         var paragraph = paragraphText.trim();
@@ -154,16 +163,8 @@
     if (!root || !root.querySelector) return;
     var clearBtn = root.querySelector(".chat-header .clear-btn");
     var closeBtn = root.querySelector(".chat-header .close-btn");
-    if (clearBtn) {
-      clearBtn.setAttribute("aria-label", "Reset chat");
-      clearBtn.setAttribute("title", "Reset chat");
-      clearBtn.textContent = "↻";
-    }
-    if (closeBtn) {
-      closeBtn.setAttribute("aria-label", "Close chat");
-      closeBtn.setAttribute("title", "Close");
-      closeBtn.textContent = "×";
-    }
+    if (clearBtn) { clearBtn.setAttribute("aria-label", "Reset chat"); clearBtn.setAttribute("title", "Reset chat"); clearBtn.textContent = "↻"; }
+    if (closeBtn) { closeBtn.setAttribute("aria-label", "Close chat"); closeBtn.setAttribute("title", "Close"); closeBtn.textContent = "×"; }
   }
 
   function patchImages(root) {
@@ -187,15 +188,8 @@
     }
   }
 
-  function getDefaultTextareaHeight() {
-    if (window.matchMedia && window.matchMedia("(max-width:767px)").matches) return 22;
-    return 24;
-  }
-
-  function getMaxTextareaHeight() {
-    if (window.matchMedia && window.matchMedia("(max-width:767px)").matches) return 112;
-    return 118;
-  }
+  function getDefaultTextareaHeight() { return window.matchMedia && window.matchMedia("(max-width:767px)").matches ? 22 : 24; }
+  function getMaxTextareaHeight() { return window.matchMedia && window.matchMedia("(max-width:767px)").matches ? 112 : 118; }
 
   function resizeComposerInput(root) {
     if (!root || !root.querySelector) return;
@@ -210,26 +204,29 @@
     var nextHeight = Math.max(defaultHeight, Math.min(measuredHeight, maxHeight));
     var isMultiline = value.indexOf("\n") !== -1 || measuredHeight > defaultHeight + 3;
     if (isMultiline) composer.setAttribute("data-multiline", "true");
-    else {
-      composer.removeAttribute("data-multiline");
-      nextHeight = defaultHeight;
-    }
+    else { composer.removeAttribute("data-multiline"); nextHeight = defaultHeight; }
     textarea.style.setProperty("height", nextHeight + "px", "important");
     textarea.style.setProperty("min-height", defaultHeight + "px", "important");
     textarea.style.setProperty("max-height", maxHeight + "px", "important");
     textarea.style.setProperty("overflow-y", isMultiline && measuredHeight >= maxHeight ? "auto" : "hidden", "important");
   }
 
+  function applyIconBgVariables(root) {
+    var iconBg = getIconBgColor();
+    if (!iconBg || !root) return;
+    var host = root.host;
+    var widgetRoot = root.querySelector && root.querySelector(".widget-root");
+    if (host && host.style) host.style.setProperty("--chatbot-launcher-bg", iconBg);
+    if (widgetRoot && widgetRoot.style) widgetRoot.style.setProperty("--chatbot-launcher-bg", iconBg);
+  }
+
   function applyExactStyles(root) {
     if (!root) return;
+    applyIconBgVariables(root);
     var style = root.getElementById(STYLE_ID);
-    if (!style) {
-      style = document.createElement("style");
-      style.id = STYLE_ID;
-      root.appendChild(style);
-    }
+    if (!style) { style = document.createElement("style"); style.id = STYLE_ID; root.appendChild(style); }
     style.textContent = [
-      ":host{z-index:" + MAX_Z_INDEX + "!important}",
+      ":host{z-index:" + MAX_Z_INDEX + "!important;--chatbot-launcher-bg:var(--chatbot-primary,#1450d8)}",
       ".widget-root,.widget-root *{font-family:var(--chatbot-font-family,Inter,Arial,sans-serif)!important;font-style:var(--chatbot-font-style,normal)!important}",
       ".widget-root .messages,.widget-root .bubble-msg,.widget-root .bubble-msg p,.widget-root .composer textarea,.widget-root .prompt{font-size:var(--chatbot-font-size,14px)!important;font-style:var(--chatbot-font-style,normal)!important}",
       ".widget-root em,.widget-root i{font-style:var(--chatbot-font-style,normal)!important}",
@@ -261,11 +258,12 @@
       ".branding a{color:#9ca3af!important;text-decoration:none!important;font-size:10px!important;line-height:1.05!important;font-weight:400!important;font-family:Inter,Arial,sans-serif!important}",
       ".branding a .chatflow-brand-text{color:#0949c7!important;font-weight:800!important;font-size:10px!important;line-height:1.05!important}",
       ".launcher{width:62px!important;height:62px!important;min-width:62px!important;min-height:62px!important;border:0!important;border-radius:999px!important;box-shadow:0 12px 30px rgba(15,23,42,.24)!important;cursor:pointer!important;overflow:hidden!important;display:flex!important;align-items:center!important;justify-content:center!important;color:#fff!important}",
-      ".widget-root[data-open='true'] .launcher{background:var(--chatbot-primary,#1450d8)!important;color:transparent!important;font-size:0!important;position:relative!important}",
+      ".widget-root[data-open='false'] .launcher{background:var(--chatbot-launcher-bg,var(--chatbot-primary,#1450d8))!important;background-color:var(--chatbot-launcher-bg,var(--chatbot-primary,#1450d8))!important;font-size:0!important}",
+      ".widget-root[data-open='false'] .launcher img{background:transparent!important;object-fit:contain!important}",
+      ".widget-root[data-open='true'] .launcher{background:var(--chatbot-primary,#1450d8)!important;background-color:var(--chatbot-primary,#1450d8)!important;color:transparent!important;font-size:0!important;position:relative!important}",
       ".widget-root[data-open='true'] .launcher img{display:none!important}",
       ".widget-root[data-open='true'] .launcher::before{content:''!important;display:block!important;position:absolute!important;left:50%!important;top:50%!important;width:20px!important;height:12px!important;transform:translate(-50%,-50%)!important;background-repeat:no-repeat!important;background-position:center!important;background-size:20px 12px!important;background-image:" + DOWN_CHEVRON_SVG + "!important}",
       ".widget-root[data-open='true'] .launcher::after{content:none!important;display:none!important}",
-      ".widget-root[data-open='false'] .launcher{font-size:0!important}",
       ".launcher img{object-fit:contain!important;background:transparent!important}",
       ".widget-root[data-theme='dark'] .composer{background:#111827!important;color:#f9fafb!important;box-shadow:inset 0 0 0 1px #374151!important}",
       ".widget-root[data-theme='dark'] .branding{background:#111827!important;color:#f9fafb!important}",
@@ -274,20 +272,29 @@
     ].join("\n");
   }
 
-  function alignSendButton(root) {
+  function alignLauncherAndSend(root) {
     if (!root || !root.querySelector) return;
+    applyIconBgVariables(root);
     var composer = root.querySelector(".composer");
     var sendBtn = root.querySelector(".send-btn");
-    if (!composer || !sendBtn) return;
-    sendBtn.style.setProperty("background", "var(--chatbot-primary,#1450d8)", "important");
-    if (composer.getAttribute("data-multiline") === "true") {
-      sendBtn.style.setProperty("top", "auto", "important");
-      sendBtn.style.setProperty("bottom", "8px", "important");
-      sendBtn.style.setProperty("transform", "none", "important");
-    } else {
-      sendBtn.style.setProperty("top", "50%", "important");
-      sendBtn.style.setProperty("bottom", "auto", "important");
-      sendBtn.style.setProperty("transform", "translateY(-50%)", "important");
+    if (composer && sendBtn) {
+      sendBtn.style.setProperty("background", "var(--chatbot-primary,#1450d8)", "important");
+      if (composer.getAttribute("data-multiline") === "true") {
+        sendBtn.style.setProperty("top", "auto", "important");
+        sendBtn.style.setProperty("bottom", "8px", "important");
+        sendBtn.style.setProperty("transform", "none", "important");
+      } else {
+        sendBtn.style.setProperty("top", "50%", "important");
+        sendBtn.style.setProperty("bottom", "auto", "important");
+        sendBtn.style.setProperty("transform", "translateY(-50%)", "important");
+      }
+    }
+    var widgetRoot = root.querySelector(".widget-root");
+    var launcher = root.querySelector(".launcher");
+    var iconBg = getIconBgColor();
+    if (launcher && iconBg && (!widgetRoot || widgetRoot.getAttribute("data-open") !== "true")) {
+      launcher.style.setProperty("background", iconBg, "important");
+      launcher.style.setProperty("background-color", iconBg, "important");
     }
   }
 
@@ -298,7 +305,7 @@
     hideLeadDataFromMessages(root);
     patchImages(root);
     resizeComposerInput(root);
-    alignSendButton(root);
+    alignLauncherAndSend(root);
   }
 
   function attachExactLayoutBehavior(root) {
@@ -307,12 +314,9 @@
     var schedule = function () {
       if (root.__chatflowExactLayoutScheduled) return;
       root.__chatflowExactLayoutScheduled = true;
-      var run = function () {
-        root.__chatflowExactLayoutScheduled = false;
-        applyStableLayout(root);
-      };
+      var run = function () { root.__chatflowExactLayoutScheduled = false; applyStableLayout(root); };
       if (window.requestAnimationFrame) window.requestAnimationFrame(run);
-      else window.setTimeout(run, 50);
+      else window.setTimeout(run, 16);
     };
     root.addEventListener("input", schedule, true);
     root.addEventListener("change", schedule, true);
@@ -323,6 +327,8 @@
       observer.observe(root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["data-open", "data-visible", "style", "class"] });
     }
     schedule();
+    window.setTimeout(schedule, 0);
+    window.setTimeout(schedule, 80);
     window.setTimeout(schedule, 250);
     window.setTimeout(schedule, 1000);
   }
@@ -330,21 +336,14 @@
   function scanAndPatchWidgets() {
     var hosts = document.querySelectorAll("[data-chatbot-widget-host]");
     for (var i = 0; i < hosts.length; i += 1) {
-      if (hosts[i] && hosts[i].shadowRoot) {
-        applyStableLayout(hosts[i].shadowRoot);
-        attachExactLayoutBehavior(hosts[i].shadowRoot);
-      }
+      if (hosts[i] && hosts[i].shadowRoot) { applyStableLayout(hosts[i].shadowRoot); attachExactLayoutBehavior(hosts[i].shadowRoot); }
     }
   }
 
   function keepPatching() {
     var attempts = 0;
     scanAndPatchWidgets();
-    var timer = window.setInterval(function () {
-      attempts += 1;
-      scanAndPatchWidgets();
-      if (attempts >= MAX_SCAN_ATTEMPTS) window.clearInterval(timer);
-    }, SCAN_INTERVAL_MS);
+    var timer = window.setInterval(function () { attempts += 1; scanAndPatchWidgets(); if (attempts >= MAX_SCAN_ATTEMPTS) window.clearInterval(timer); }, SCAN_INTERVAL_MS);
     if (window.MutationObserver) {
       var observer = new MutationObserver(scanAndPatchWidgets);
       observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
@@ -361,10 +360,7 @@
     script.async = false;
     script.defer = false;
     script.onload = keepPatching;
-    script.onerror = function () {
-      if (window.console && console.error) console.error("[chatbot-widget] Unable to load original widget script");
-      keepPatching();
-    };
+    script.onerror = function () { if (window.console && console.error) console.error("[chatbot-widget] Unable to load original widget script"); keepPatching(); };
     (document.head || document.documentElement || document.body).appendChild(script);
   }
 
