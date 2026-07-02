@@ -1,7 +1,8 @@
 (function () {
-  var CORE_WIDGET_SRC = "https://cdn.jsdelivr.net/gh/Umer1299/chatbot-widget@aa55dba4ee9b7893961bb73cb455f7a6b1edb386/chatbot-widget.js?v=universal-core-icon-bg-visible-1";
+  var CORE_WIDGET_SRC = "https://cdn.jsdelivr.net/gh/Umer1299/chatbot-widget@aa55dba4ee9b7893961bb73cb455f7a6b1edb386/chatbot-widget.js?v=universal-core-icon-bg-stable-2";
   var LOADER_FLAG = "__chatflowUniversalWidgetLoader";
-  var ICON_BG_STYLE_ID = "chatflow-force-launcher-bg";
+  var ICON_BG_STYLE_ID = "chatflow-force-launcher-bg-stable";
+  var PATCHED_ROOT_FLAG = "__chatflowLauncherBgStablePatched";
 
   function getCurrentScriptTag() {
     if (document.currentScript && document.currentScript.tagName === "SCRIPT") return document.currentScript;
@@ -18,7 +19,7 @@
       if (window.top && window.top !== window && window.top.document && window.top.document.documentElement) return window.top.document;
     } catch (error) {}
     try {
-      if (window.parent && window.parent !== window && window.parent.document && window.parent.document.documentElement) return window.parent.document;
+      if (window.parent && window.parent !== window && window.parent.document && window.parent.documentElement) return window.parent.document;
     } catch (error2) {}
     return document;
   }
@@ -32,7 +33,7 @@
     try {
       return !!(window.top && window.top !== window && window.top.document && window.top.document.documentElement);
     } catch (error) {
-      try { return !!(window.parent && window.parent !== window && window.parent.document && window.parent.document.documentElement); }
+      try { return !!(window.parent && window.parent !== window && window.parent.document && window.parent.documentElement); }
       catch (error2) { return false; }
     }
   }
@@ -51,10 +52,10 @@
 
   function normalizeIconSize(value) {
     var raw = String(value || "").trim();
-    if (!raw) return "62%";
+    if (!raw) return "58%";
     if (/^\d+(?:\.\d+)?$/.test(raw)) return raw + "%";
     if (/^\d+(?:\.\d+)?(?:%|px|rem|em)$/i.test(raw)) return raw;
-    return "62%";
+    return "58%";
   }
 
   function getIconBgColor(sourceScript) {
@@ -68,8 +69,8 @@
   }
 
   function getIconSize(sourceScript) {
-    if (!sourceScript || !sourceScript.getAttribute) return "62%";
-    return normalizeIconSize(sourceScript.getAttribute("data-icon-size") || sourceScript.getAttribute("data-launcher-icon-size") || "62%");
+    if (!sourceScript || !sourceScript.getAttribute) return "58%";
+    return normalizeIconSize(sourceScript.getAttribute("data-icon-size") || sourceScript.getAttribute("data-launcher-icon-size") || "58%");
   }
 
   function copyAttributes(source, target) {
@@ -81,64 +82,127 @@
     }
   }
 
+  function installRootStyle(root, targetDoc, color, iconSize) {
+    var style = root.getElementById(ICON_BG_STYLE_ID);
+    if (!style) {
+      style = targetDoc.createElement("style");
+      style.id = ICON_BG_STYLE_ID;
+      root.appendChild(style);
+    }
+
+    style.textContent = [
+      ":host{--chatflow-forced-launcher-bg:" + color + "!important}",
+      ".widget-root{--chatflow-forced-launcher-bg:" + color + "!important}",
+      ".widget-root[data-open='false'] .launcher,.widget-root:not([data-open='true']) .launcher{background:" + color + "!important;background-color:" + color + "!important;background-image:none!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:hidden!important}",
+      ".widget-root[data-open='false'] .launcher>img,.widget-root[data-open='false'] .launcher img,.widget-root:not([data-open='true']) .launcher>img,.widget-root:not([data-open='true']) .launcher img{width:" + iconSize + "!important;height:" + iconSize + "!important;min-width:auto!important;min-height:auto!important;max-width:" + iconSize + "!important;max-height:" + iconSize + "!important;object-fit:contain!important;object-position:center!important;margin:auto!important;padding:0!important;background:transparent!important;background-color:transparent!important;border-radius:0!important;display:block!important;box-shadow:none!important}",
+      ".widget-root[data-open='true'] .launcher{background:var(--chatbot-primary,#1450d8)!important;background-color:var(--chatbot-primary,#1450d8)!important;background-image:none!important}"
+    ].join("\n");
+  }
+
+  function patchRoot(root, targetDoc, color, iconSize) {
+    if (!root) return;
+    installRootStyle(root, targetDoc, color, iconSize);
+
+    var host = root.host;
+    if (host && host.style) host.style.setProperty("--chatflow-forced-launcher-bg", color, "important");
+
+    var widgetRoot = root.querySelector(".widget-root");
+    if (widgetRoot && widgetRoot.style) widgetRoot.style.setProperty("--chatflow-forced-launcher-bg", color, "important");
+
+    var launcher = root.querySelector(".launcher");
+    var isOpen = widgetRoot && widgetRoot.getAttribute("data-open") === "true";
+    if (launcher && !isOpen) {
+      launcher.style.setProperty("background", color, "important");
+      launcher.style.setProperty("background-color", color, "important");
+      launcher.style.setProperty("background-image", "none", "important");
+      launcher.style.setProperty("display", "flex", "important");
+      launcher.style.setProperty("align-items", "center", "important");
+      launcher.style.setProperty("justify-content", "center", "important");
+
+      var images = launcher.querySelectorAll("img");
+      for (var i = 0; i < images.length; i += 1) {
+        var img = images[i];
+        img.style.setProperty("width", iconSize, "important");
+        img.style.setProperty("height", iconSize, "important");
+        img.style.setProperty("min-width", "auto", "important");
+        img.style.setProperty("min-height", "auto", "important");
+        img.style.setProperty("max-width", iconSize, "important");
+        img.style.setProperty("max-height", iconSize, "important");
+        img.style.setProperty("object-fit", "contain", "important");
+        img.style.setProperty("object-position", "center", "important");
+        img.style.setProperty("margin", "auto", "important");
+        img.style.setProperty("background", "transparent", "important");
+        img.style.setProperty("background-color", "transparent", "important");
+        img.style.setProperty("border-radius", "0", "important");
+        img.style.setProperty("box-shadow", "none", "important");
+      }
+    }
+  }
+
+  function attachRootObserver(root, targetDoc, color, iconSize) {
+    if (!root || root[PATCHED_ROOT_FLAG]) return;
+    root[PATCHED_ROOT_FLAG] = true;
+
+    var scheduled = false;
+    function schedulePatch() {
+      if (scheduled) return;
+      scheduled = true;
+      var win = targetDoc.defaultView || window;
+      var run = function () {
+        scheduled = false;
+        patchRoot(root, targetDoc, color, iconSize);
+      };
+      if (win.requestAnimationFrame) win.requestAnimationFrame(run);
+      else win.setTimeout(run, 0);
+    }
+
+    patchRoot(root, targetDoc, color, iconSize);
+    root.addEventListener("click", schedulePatch, true);
+
+    if ((targetDoc.defaultView || window).MutationObserver) {
+      var observer = new (targetDoc.defaultView || window).MutationObserver(schedulePatch);
+      observer.observe(root, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["style", "class", "data-open", "src"]
+      });
+    }
+
+    var frames = 0;
+    function frameLoop() {
+      frames += 1;
+      patchRoot(root, targetDoc, color, iconSize);
+      if (frames < 180) {
+        var win = targetDoc.defaultView || window;
+        if (win.requestAnimationFrame) win.requestAnimationFrame(frameLoop);
+        else win.setTimeout(frameLoop, 16);
+      }
+    }
+    frameLoop();
+  }
+
   function applyLauncherBackground(targetDoc, sourceScript) {
     var color = getIconBgColor(sourceScript);
     if (!color) return;
     var iconSize = getIconSize(sourceScript);
     var attempts = 0;
 
-    function patchOnce() {
+    function scan() {
       attempts += 1;
       var hosts = targetDoc.querySelectorAll("[data-chatbot-widget-host]");
       for (var i = 0; i < hosts.length; i += 1) {
-        var host = hosts[i];
-        var root = host && host.shadowRoot;
-        if (!root) continue;
-
-        if (host.style) host.style.setProperty("--chatbot-launcher-bg", color);
-        var widgetRoot = root.querySelector(".widget-root");
-        if (widgetRoot && widgetRoot.style) widgetRoot.style.setProperty("--chatbot-launcher-bg", color);
-
-        var style = root.getElementById(ICON_BG_STYLE_ID);
-        if (!style) {
-          style = targetDoc.createElement("style");
-          style.id = ICON_BG_STYLE_ID;
-          root.appendChild(style);
-        }
-        style.textContent = [
-          ".widget-root[data-open='false'] .launcher{background:" + color + "!important;background-color:" + color + "!important;background-image:none!important;display:flex!important;align-items:center!important;justify-content:center!important}",
-          ".widget-root[data-open='false'] .launcher img{width:" + iconSize + "!important;height:" + iconSize + "!important;max-width:" + iconSize + "!important;max-height:" + iconSize + "!important;object-fit:contain!important;margin:auto!important;background:transparent!important;border-radius:0!important;display:block!important}",
-          ".widget-root[data-open='true'] .launcher{background:var(--chatbot-primary,#1450d8)!important;background-color:var(--chatbot-primary,#1450d8)!important}"
-        ].join("\n");
-
-        var launcher = root.querySelector(".launcher");
-        if (launcher && (!widgetRoot || widgetRoot.getAttribute("data-open") !== "true")) {
-          launcher.style.setProperty("background", color, "important");
-          launcher.style.setProperty("background-color", color, "important");
-          launcher.style.setProperty("background-image", "none", "important");
-          var img = launcher.querySelector("img");
-          if (img) {
-            img.style.setProperty("width", iconSize, "important");
-            img.style.setProperty("height", iconSize, "important");
-            img.style.setProperty("max-width", iconSize, "important");
-            img.style.setProperty("max-height", iconSize, "important");
-            img.style.setProperty("object-fit", "contain", "important");
-            img.style.setProperty("background", "transparent", "important");
-            img.style.setProperty("border-radius", "0", "important");
-          }
-        }
+        if (hosts[i] && hosts[i].shadowRoot) attachRootObserver(hosts[i].shadowRoot, targetDoc, color, iconSize);
       }
+      if (attempts >= 600 && timer) (targetDoc.defaultView || window).clearInterval(timer);
     }
 
-    patchOnce();
-    var timer = targetDoc.defaultView.setInterval(function () {
-      patchOnce();
-      if (attempts >= 240) targetDoc.defaultView.clearInterval(timer);
-    }, 250);
+    scan();
+    var timer = (targetDoc.defaultView || window).setInterval(scan, 100);
 
-    if (targetDoc.defaultView.MutationObserver) {
-      var observer = new targetDoc.defaultView.MutationObserver(patchOnce);
-      observer.observe(targetDoc.documentElement || targetDoc.body, { childList: true, subtree: true });
+    if ((targetDoc.defaultView || window).MutationObserver) {
+      var docObserver = new (targetDoc.defaultView || window).MutationObserver(scan);
+      docObserver.observe(targetDoc.documentElement || targetDoc.body, { childList: true, subtree: true });
     }
   }
 
