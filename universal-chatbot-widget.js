@@ -1,6 +1,7 @@
 (function () {
-  var CORE_WIDGET_SRC = "https://cdn.jsdelivr.net/gh/Umer1299/chatbot-widget@68b28d1c7db1bce4afdfdb36a03f313e571950d9/chatbot-widget.js?v=universal-core-1";
+  var CORE_WIDGET_SRC = "https://cdn.jsdelivr.net/gh/Umer1299/chatbot-widget@68b28d1c7db1bce4afdfdb36a03f313e571950d9/chatbot-widget.js?v=universal-core-2";
   var LOADER_FLAG = "__chatflowUniversalWidgetLoader";
+  var ICON_BG_STYLE_ID = "chatflow-icon-bg-style";
 
   function getCurrentScriptTag() {
     if (document.currentScript && document.currentScript.tagName === "SCRIPT") return document.currentScript;
@@ -38,7 +39,7 @@
       return !!(window.top && window.top !== window && window.top.document && window.top.document.documentElement);
     } catch (error) {
       try {
-        return !!(window.parent && window.parent !== window && window.parent.document && window.parent.document.documentElement);
+        return !!(window.parent && window.parent !== window && window.parent.document && window.parent.documentElement);
       } catch (error2) {
         return false;
       }
@@ -47,6 +48,24 @@
 
   function sanitizeId(value) {
     return String(value || "default").replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 80) || "default";
+  }
+
+  function normalizeCssColor(value) {
+    var raw = String(value || "").trim();
+    if (!raw) return "";
+    if (/^#[0-9a-f]{3,8}$/i.test(raw)) return raw;
+    if (/^(rgb|rgba|hsl|hsla)\([0-9\s,%.]+\)$/i.test(raw)) return raw;
+    return "";
+  }
+
+  function getIconBgColor(sourceScript) {
+    if (!sourceScript || !sourceScript.getAttribute) return "";
+    return normalizeCssColor(
+      sourceScript.getAttribute("data-icon-bg-color") ||
+      sourceScript.getAttribute("data-launcher-bg-color") ||
+      sourceScript.getAttribute("data-button-bg-color") ||
+      ""
+    );
   }
 
   function copyAttributes(source, target) {
@@ -58,6 +77,45 @@
     }
   }
 
+  function patchIconBackground(targetDoc, sourceScript) {
+    var iconBgColor = getIconBgColor(sourceScript);
+    if (!iconBgColor) return;
+
+    var attempts = 0;
+    var timer = targetDoc.defaultView.setInterval(function () {
+      attempts += 1;
+      var hosts = targetDoc.querySelectorAll("[data-chatbot-widget-host]");
+
+      for (var i = 0; i < hosts.length; i += 1) {
+        var host = hosts[i];
+        if (!host || !host.shadowRoot) continue;
+
+        var root = host.shadowRoot;
+        var style = root.getElementById(ICON_BG_STYLE_ID);
+        if (!style) {
+          style = targetDoc.createElement("style");
+          style.id = ICON_BG_STYLE_ID;
+          root.appendChild(style);
+        }
+
+        style.textContent = [
+          ".widget-root[data-open='false'] .launcher{background:" + iconBgColor + "!important;background-color:" + iconBgColor + "!important}",
+          ".widget-root[data-open='false'] .launcher img{background:transparent!important;object-fit:contain!important}",
+          ".widget-root[data-open='true'] .launcher{background:var(--chatbot-primary,#1450d8)!important;background-color:var(--chatbot-primary,#1450d8)!important}"
+        ].join("\n");
+
+        var widgetRoot = root.querySelector(".widget-root");
+        var launcher = root.querySelector(".launcher");
+        if (launcher && (!widgetRoot || widgetRoot.getAttribute("data-open") !== "true")) {
+          launcher.style.setProperty("background", iconBgColor, "important");
+          launcher.style.setProperty("background-color", iconBgColor, "important");
+        }
+      }
+
+      if (attempts >= 240) targetDoc.defaultView.clearInterval(timer);
+    }, 250);
+  }
+
   function appendScript(targetDoc, sourceScript) {
     var botId = sourceScript && sourceScript.getAttribute ? sourceScript.getAttribute("data-bot-id") : "";
     var chatId = sourceScript && sourceScript.getAttribute ? (sourceScript.getAttribute("data-chat-id") || sourceScript.getAttribute("data-chatid")) : "";
@@ -65,18 +123,20 @@
     var instanceKey = sanitizeId(botId || chatId || token || "default");
     var scriptId = "chatflow-universal-widget-" + instanceKey;
 
-    if (targetDoc.getElementById(scriptId)) return;
+    if (!targetDoc.getElementById(scriptId)) {
+      var script = targetDoc.createElement("script");
+      script.id = scriptId;
+      copyAttributes(sourceScript, script);
+      script.setAttribute("data-chatflow-universal-injected", "true");
+      script.src = (sourceScript && sourceScript.getAttribute && sourceScript.getAttribute("data-core-widget-src")) || CORE_WIDGET_SRC;
+      script.async = false;
+      script.defer = false;
 
-    var script = targetDoc.createElement("script");
-    script.id = scriptId;
-    copyAttributes(sourceScript, script);
-    script.setAttribute("data-chatflow-universal-injected", "true");
-    script.src = (sourceScript && sourceScript.getAttribute && sourceScript.getAttribute("data-core-widget-src")) || CORE_WIDGET_SRC;
-    script.async = false;
-    script.defer = false;
+      var parent = targetDoc.head || targetDoc.body || targetDoc.documentElement;
+      parent.appendChild(script);
+    }
 
-    var parent = targetDoc.head || targetDoc.body || targetDoc.documentElement;
-    parent.appendChild(script);
+    patchIconBackground(targetDoc, sourceScript);
   }
 
   function start() {
