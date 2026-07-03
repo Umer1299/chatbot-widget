@@ -6,7 +6,8 @@
   <title>Chatflow Embed</title>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
-    html, body {
+    html,
+    body {
       width: 100%;
       height: 100%;
       margin: 0;
@@ -16,7 +17,9 @@
       font-family: Inter, Arial, sans-serif;
       border-radius: 20px;
     }
-    #embed-loader, #embed-error {
+
+    #embed-loader,
+    #embed-error {
       position: fixed;
       inset: 0;
       display: flex;
@@ -30,8 +33,14 @@
       font-size: 14px;
       line-height: 1.5;
       border-radius: 20px;
+      z-index: 2147483647;
     }
-    #embed-error { color: #b91c1c; display: none; }
+
+    #embed-error {
+      color: #b91c1c;
+      display: none;
+      white-space: pre-wrap;
+    }
   </style>
 </head>
 <body>
@@ -44,12 +53,19 @@
       var DEFAULT_STREAM_URL = "https://chatbot-backend-w1ju.onrender.com/api/chat?stream=true";
       var LOCAL_WIDGET_SRC = "./chatbot-widget.js";
       var SEND_ICON = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAA7DAAAOwwHHb6hkAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAItJREFUOI3N0DEOQUEUQNFHJChpbcIelHprsAbdtwaLYSsWoBeN7mjmy4SJzP8icauZl9z7khfxazD6Rm5wwrSv3NIt8iJ3i2BfkFuOmNRubnBN7x3uWWRckhe5nGZtYIl1FtmUAoO0dZvNnoH0X+GAec0t3wIlhlWlD/x/4BwRt4i49KpjilkvuZYHFKbfp+NCkccAAAAASUVORK5CYII=";
-      var params = new URLSearchParams(window.location.search);
+
+      var params = new URLSearchParams(window.location.search || "");
       var loader = document.getElementById("embed-loader");
       var errorBox = document.getElementById("embed-error");
-      var iframeMode = getParam(["iframeMode", "iframe", "embedMode"]) !== "false";
       var retryStarted = false;
       var lastWidgetError = "";
+      var configState = {
+        status: "idle",
+        url: "",
+        statusCode: 0,
+        error: "",
+        loadedAt: 0
+      };
 
       function getParam(names) {
         for (var i = 0; i < names.length; i += 1) {
@@ -57,6 +73,59 @@
           if (value !== null && String(value).trim() !== "") return String(value).trim();
         }
         return "";
+      }
+
+      function normalizeBubbleVersion(value) {
+        var raw = String(value || "").trim();
+        if (!raw) return "";
+        if (/^(true|1|yes|test|dev|development|version-test)$/i.test(raw)) return "test";
+        if (/^(false|0|no|live|production)$/i.test(raw)) return "live";
+        return raw;
+      }
+
+      function resolveBubbleVersion() {
+        var explicit = getParam([
+          "data-bubble-version",
+          "bubbleVersion",
+          "bubble_version",
+          "version",
+          "env",
+          "mode",
+          "bubbleEnv",
+          "bubble_env",
+          "data-env",
+          "data-mode"
+        ]);
+        if (explicit) return normalizeBubbleVersion(explicit);
+
+        var testFlag = getParam(["test", "isTestVersion", "is_test_version", "development", "dev"]);
+        if (/^(true|1|yes|test|dev|development|version-test)$/i.test(testFlag)) return "test";
+
+        var referrer = String(document.referrer || "").toLowerCase();
+        if (referrer.indexOf("version-test") !== -1 || referrer.indexOf("debug_mode=true") !== -1) return "test";
+        return "";
+      }
+
+      function getApiHost() {
+        return (getParam(["data-api-host", "apiHost", "api_host", "dataApiHost"]) || DEFAULT_API_HOST).replace(/\/+$/, "");
+      }
+
+      function getVersionedApiHost() {
+        var apiHost = getApiHost();
+        var bubbleVersion = resolveBubbleVersion();
+        if (/^(test|version-test|dev|development)$/i.test(bubbleVersion)) {
+          return /\/version-test$/i.test(apiHost) ? apiHost : apiHost + "/version-test";
+        }
+        return apiHost.replace(/\/version-test$/i, "");
+      }
+
+      function getConfigUrl(botId) {
+        return getVersionedApiHost() + "/api/1.1/wf/get-chatbot?botId=" + encodeURIComponent(botId);
+      }
+
+      function addCacheBust(src) {
+        var clean = String(src || LOCAL_WIDGET_SRC).trim() || LOCAL_WIDGET_SRC;
+        return clean + (clean.indexOf("?") === -1 ? "?" : "&") + "cf_cache=" + Date.now();
       }
 
       function showError(message) {
@@ -74,10 +143,96 @@
         }
       }
 
+      function hideLoader() {
+        if (loader) loader.style.display = "none";
+      }
+
       function copyParamToData(script, paramNames, dataName, fallback) {
         var value = getParam(paramNames) || fallback || "";
         if (value) script.setAttribute(dataName, value);
         return value;
+      }
+
+      function isGetChatbotUrl(url) {
+        return String(url || "").indexOf("/api/1.1/wf/get-chatbot") !== -1;
+      }
+
+      function extractConfigObject(data) {
+        return data && typeof data === "object" && data.response && typeof data.response === "object" ? data.response : data;
+      }
+
+      function configLooksEmpty(data) {
+        var config = extractConfigObject(data);
+        if (!config || typeof config !== "object") return true;
+        return !(
+          config.name ||
+          config.welcomeMessage ||
+          config.primaryColor ||
+          config.chatbotToken ||
+          config.chatbot_token ||
+          config.widgetToken ||
+          config.token ||
+          config.starterPrompts ||
+          config.iconUrl ||
+          config.iconURL ||
+          config.icon
+        );
+      }
+
+      function installConfigMonitor() {
+        if (!window.fetch || window.__chatflowIndexConfigMonitor) return;
+        window.__chatflowIndexConfigMonitor = true;
+        var nativeFetch = window.fetch.bind(window);
+
+        window.fetch = function (input, init) {
+          var url = typeof input === "string" ? input : (input && input.url) || "";
+          var isConfigRequest = isGetChatbotUrl(url);
+          if (isConfigRequest) {
+            configState.status = "loading";
+            configState.url = url;
+            configState.error = "";
+            configState.statusCode = 0;
+          }
+
+          return nativeFetch(input, init).then(function (response) {
+            if (!isConfigRequest) return response;
+            configState.statusCode = response && response.status ? response.status : 0;
+
+            if (!response || !response.ok) {
+              configState.status = "failed";
+              configState.error = "Config request failed" + (configState.statusCode ? " (HTTP " + configState.statusCode + ")" : "");
+              return response;
+            }
+
+            if (!response.clone || typeof Response !== "function") {
+              configState.status = "loaded";
+              configState.loadedAt = Date.now();
+              return response;
+            }
+
+            return response.clone().json().then(function (data) {
+              if (configLooksEmpty(data)) {
+                configState.status = "empty";
+                configState.error = "Bubble returned an empty chatbot config for this botId.";
+              } else {
+                configState.status = "loaded";
+                configState.error = "";
+                configState.loadedAt = Date.now();
+              }
+              return response;
+            }).catch(function (error) {
+              configState.status = "failed";
+              configState.error = "Config response was not valid JSON: " + (error && error.message ? error.message : String(error || "unknown error"));
+              return response;
+            });
+          }).catch(function (error) {
+            if (isConfigRequest) {
+              configState.status = "failed";
+              configState.error = error && error.message ? error.message : String(error || "Config request failed");
+            }
+            throw error;
+          });
+        };
       }
 
       function installCreateChatSaveCorsBypass() {
@@ -120,31 +275,9 @@
         };
       }
 
-      installCreateChatSaveCorsBypass();
-
-      function resolveBubbleVersion() {
-        var explicit = getParam(["data-bubble-version", "bubbleVersion", "bubble_version", "version", "env", "mode", "bubbleEnv", "bubble_env", "data-env", "data-mode"]);
-        if (explicit) return explicit;
-        var testFlag = getParam(["test", "isTestVersion", "is_test_version", "development", "dev"]);
-        if (/^(true|1|yes|test|dev|development|version-test)$/i.test(testFlag)) return "test";
-        var referrer = String(document.referrer || "").toLowerCase();
-        if (referrer.indexOf("version-test") !== -1 || referrer.indexOf("debug_mode=true") !== -1) return "test";
-        return "";
-      }
-
-      function addCacheBust(src) {
-        var clean = String(src || LOCAL_WIDGET_SRC).trim() || LOCAL_WIDGET_SRC;
-        return clean + (clean.indexOf("?") === -1 ? "?" : "&") + "cf_cache=" + Date.now();
-      }
-
       function resetWidgetGlobals() {
         try { window.__chatbotWidgetInitState = null; } catch (e) {}
-        try { window.__chatbotWidgetHostState = null; } catch (e) {}
-      }
-
-      function getWidgetSource(forceLocal) {
-        if (forceLocal) return addCacheBust(LOCAL_WIDGET_SRC);
-        return addCacheBust(getParam(["widgetSrc", "scriptSrc"]) || LOCAL_WIDGET_SRC);
+        try { window.__chatbotWidgetHostState = null; } catch (e2) {}
       }
 
       function removeLoaderScripts() {
@@ -154,7 +287,7 @@
         }
       }
 
-      function buildWidgetScript(src) {
+      function buildWidgetScript(src, botId, chatbotToken) {
         var script = document.createElement("script");
         script.src = src;
         script.async = false;
@@ -162,65 +295,56 @@
         script.crossOrigin = "anonymous";
         script.setAttribute("data-chatflow-index-loader", "true");
         script.setAttribute("data-bot-id", botId);
+
         copyParamToData(script, ["data-chat-id", "chatID", "chatId", "chat_id", "chat"], "data-chat-id");
-        copyParamToData(script, ["data-api-host", "apiHost", "api_host", "dataApiHost"], "data-api-host", DEFAULT_API_HOST);
+        copyParamToData(script, ["data-api-host", "apiHost", "api_host", "dataApiHost"], "data-api-host", getApiHost());
         copyParamToData(script, ["data-chatbot-token", "chatbotToken", "chatbot_token", "widgetToken", "widget_token", "token", "data-token", "data-widget-token"], "data-chatbot-token", chatbotToken);
         copyParamToData(script, ["data-stream-api-url", "streamApiUrl", "stream_api_url", "chatApiUrl", "chat_api_url"], "data-stream-api-url", DEFAULT_STREAM_URL);
         copyParamToData(script, ["data-position", "position"], "data-position");
+
         var bubbleVersion = resolveBubbleVersion();
         if (bubbleVersion) script.setAttribute("data-bubble-version", bubbleVersion);
+
         var themeConfig = getParam(["data-theme-config", "themeConfig", "theme_config"]);
         if (themeConfig) script.setAttribute("data-theme-config", themeConfig);
-        else if (iframeMode) script.setAttribute("data-theme-config", JSON.stringify({ autoOpen: true }));
-        script.onload = function () { waitForWidgetHost(botId); };
+        else script.setAttribute("data-theme-config", JSON.stringify({ autoOpen: true }));
+
+        script.onload = function () {
+          waitForWidgetHost(botId);
+        };
         script.onerror = function () {
-          lastWidgetError = "Unable to load chatbot-widget.js from " + src;
-          if (!retryStarted) retryWithLocalWidget();
+          lastWidgetError = "Unable to load chatbot widget script from " + src;
+          if (!retryStarted) retryWithLocalWidget(botId, chatbotToken);
           else showError(lastWidgetError);
         };
         return script;
       }
 
-      function loadWidget(forceLocal) {
+      function loadWidget(forceLocal, botId, chatbotToken) {
         hideError();
         resetWidgetGlobals();
         removeLoaderScripts();
-        document.body.appendChild(buildWidgetScript(getWidgetSource(forceLocal)));
+        var widgetSource = forceLocal ? LOCAL_WIDGET_SRC : (getParam(["widgetSrc", "scriptSrc"]) || LOCAL_WIDGET_SRC);
+        document.body.appendChild(buildWidgetScript(addCacheBust(widgetSource), botId, chatbotToken));
       }
 
-      function retryWithLocalWidget() {
+      function retryWithLocalWidget(botId, chatbotToken) {
         if (retryStarted) return;
         retryStarted = true;
         if (loader) loader.textContent = "Loading chatbot...";
-        loadWidget(true);
+        loadWidget(true, botId, chatbotToken);
       }
 
-      window.addEventListener("error", function (event) {
-        var filename = String((event && event.filename) || "");
-        if (filename.indexOf("chatbot-widget.js") !== -1) {
-          lastWidgetError = String((event && event.message) || "Widget JavaScript error");
-          if (window.console && console.error) console.error("[chatflow-index] widget script error:", event.error || event.message || event);
+      function getUsefulConfigError() {
+        if (configState.status === "failed" || configState.status === "empty") {
+          return "Chatbot frame loaded, but chatbot data did not load.\n\n" +
+            "Bot ID: " + botId + "\n" +
+            "Config URL: " + (configState.url || getConfigUrl(botId)) + "\n" +
+            "Error: " + (configState.error || "Unknown config error") + "\n\n" +
+            "Check Bubble API workflow, test/live version, CORS, and whether this bot exists in the selected version.";
         }
-      });
-
-      window.addEventListener("unhandledrejection", function (event) {
-        var reason = event && event.reason;
-        var message = reason && reason.message ? reason.message : String(reason || "Unhandled widget promise rejection");
-        if (/chatbot|widget|shadowRoot|data-bot-id|botId/i.test(message)) {
-          lastWidgetError = message;
-          if (window.console && console.error) console.error("[chatflow-index] widget promise error:", reason || event);
-        }
-      });
-
-      var botId = getParam(["data-bot-id", "botId", "botID", "bot_id", "bot", "chatbotId", "chatbot_id"]);
-      var chatbotToken = getParam(["data-chatbot-token", "chatbotToken", "chatbot_token", "widgetToken", "widget_token", "token", "data-token", "data-widget-token"]);
-
-      if (!botId) {
-        showError("Bot ID missing. Use ?botId=YOUR_BOT_ID in the index.html URL.");
-        return;
+        return "";
       }
-
-      loadWidget(false);
 
       function waitForWidgetHost(currentBotId) {
         var attempts = 0;
@@ -228,21 +352,25 @@
           attempts += 1;
           var host = document.getElementById("chatbot-widget-host-" + currentBotId);
           if (host && host.shadowRoot) {
-            window.clearInterval(timer);
-            if (loader) loader.style.display = "none";
-            if (iframeMode) forceIframeLayout(host);
-          } else if (attempts >= 120) {
-            window.clearInterval(timer);
-            if (!retryStarted) {
-              retryWithLocalWidget();
+            forceIframeLayout(host);
+
+            if (configState.status === "failed" || configState.status === "empty") {
+              window.clearInterval(timer);
+              showError(getUsefulConfigError());
               return;
             }
-            if (window.console && console.warn) console.warn("[chatflow-index] Widget host was not created", {
-              botId: currentBotId,
-              initState: window.__chatbotWidgetInitState,
-              lastWidgetError: lastWidgetError
-            });
-            showError("Chatbot loaded, but the widget host was not created." + (lastWidgetError ? " Error: " + lastWidgetError : "") + " Check botId and chatbotToken.");
+
+            if (configState.status === "loaded" || attempts >= 50) {
+              window.clearInterval(timer);
+              hideLoader();
+            }
+          } else if (attempts >= 160) {
+            window.clearInterval(timer);
+            if (!retryStarted) {
+              retryWithLocalWidget(currentBotId, chatbotToken);
+              return;
+            }
+            showError("Chatbot script loaded, but the widget host was not created.\n\nBot ID: " + currentBotId + "\n" + (lastWidgetError ? "Error: " + lastWidgetError : "Check botId, widget script URL, and browser console."));
           }
         }, 100);
       }
@@ -267,14 +395,15 @@
         if (!root) return;
         var color = getPrimaryColor(root);
         if (!color) return;
-        if (host.style.getPropertyValue("--chatflow-index-primary") !== color) host.style.setProperty("--chatflow-index-primary", color);
+        host.style.setProperty("--chatflow-index-primary", color);
         var widgetRoot = root.querySelector(".widget-root");
-        if (widgetRoot && widgetRoot.style.getPropertyValue("--chatflow-index-primary") !== color) widgetRoot.style.setProperty("--chatflow-index-primary", color);
+        if (widgetRoot) widgetRoot.style.setProperty("--chatflow-index-primary", color);
       }
 
       function forceIframeLayout(host) {
-        var root = host.shadowRoot;
+        var root = host && host.shadowRoot;
         if (!root) return;
+
         host.style.position = "fixed";
         host.style.inset = "0";
         host.style.width = "100%";
@@ -284,186 +413,66 @@
         host.style.overflow = "hidden";
 
         var existing = root.querySelector("style[data-index-iframe-layout]");
-        if (existing) existing.remove();
+        if (!existing) {
+          existing = document.createElement("style");
+          existing.setAttribute("data-index-iframe-layout", "true");
+          root.appendChild(existing);
+        }
 
-        var style = document.createElement("style");
-        style.setAttribute("data-index-iframe-layout", "true");
-        style.textContent = [
+        existing.textContent = [
           ":host{all:initial!important;position:fixed!important;inset:0!important;width:100%!important;height:100%!important;pointer-events:auto!important;border-radius:20px!important;overflow:hidden!important}",
           ".widget-root{position:fixed!important;inset:0!important;left:0!important;right:0!important;top:0!important;bottom:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;display:flex!important;align-items:stretch!important;justify-content:stretch!important;gap:0!important;pointer-events:auto!important;border-radius:20px!important;overflow:hidden!important;font-family:var(--chatbot-font-family,Inter,Arial,sans-serif)!important;font-size:var(--chatbot-font-size,14px)!important}",
           ".widget-root[data-position='left']{left:0!important;right:0!important;align-items:stretch!important}",
+          ".widget-root[data-open='false']{top:0!important;height:100%!important;align-items:stretch!important}",
           ".chat-panel,.panel{display:flex!important;position:static!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;margin:0!important;box-sizing:border-box!important;overflow:hidden!important;border-radius:20px!important}",
           ".launcher{display:none!important}",
           ".chat-container{height:100%!important;min-height:0!important;border-radius:20px!important;overflow:hidden!important}",
-          ".chat-header{position:relative!important;overflow:visible!important}",
-          ".chat-header .avatar,.avatar{width:48px!important;height:48px!important;min-width:48px!important;flex:0 0 48px!important;border-radius:999px!important;background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important;background-color:transparent!important;box-shadow:none!important}",
-          ".chat-header .avatar img,.avatar img,.launcher img,img{background:transparent!important;background-color:transparent!important;box-shadow:none!important}",
-          ".chat-header .title,.title{font-size:18px!important;font-weight:800!important;line-height:1.2!important;letter-spacing:-0.01em!important}",
-          ".chat-header .clear-btn,.chat-header .close-btn{display:none!important}",
           ".messages{flex:1 1 auto!important;min-height:0!important;border-bottom:0!important}",
           ".prompts,.prompts[data-hidden='true']{display:none!important;height:0!important;min-height:0!important;max-height:0!important;padding:0!important;margin:0!important;border:0!important;overflow:hidden!important}",
-          ".composer{position:relative!important;display:block!important;flex:0 0 auto!important;margin:6px 12px 8px!important;padding:8px 50px 8px 14px!important;border:0!important;border-top:0!important;border-bottom:0!important;border-radius:24px!important;background:#fff!important;box-shadow:inset 0 0 0 1px #d1d5db!important;box-sizing:border-box!important;background-clip:padding-box!important;overflow:visible!important;font-family:inherit!important;font-size:inherit!important}",
-          ".composer textarea{box-sizing:border-box!important;width:100%!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;outline:0!important;resize:none!important;line-height:1.35!important;display:block!important;box-shadow:none!important;font:inherit!important;font-family:inherit!important;font-size:inherit!important}",
-          ".composer:not([data-multiline='true']) textarea{height:24px!important;min-height:24px!important;max-height:24px!important;overflow:hidden!important}",
-          ".composer[data-multiline='true'] textarea{min-height:24px!important;max-height:118px!important;overflow-y:auto!important}",
-          ".composer textarea:focus{outline:0!important;box-shadow:none!important;border:0!important}",
-          ".send-btn{position:absolute!important;right:10px!important;top:50%!important;bottom:auto!important;transform:translateY(-50%)!important;box-sizing:border-box!important;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important;padding:0!important;border:0!important;border-radius:999px!important;background:var(--chatflow-index-primary,var(--chatbot-primary,#2563eb))!important;color:#fff!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:0!important;line-height:1!important;box-shadow:none!important;text-indent:0!important;overflow:hidden!important;cursor:pointer!important}",
+          ".composer{position:relative!important;display:block!important;flex:0 0 auto!important;margin:6px 12px 8px!important;padding:8px 50px 8px 14px!important;border:0!important;border-radius:24px!important;background:#fff!important;box-shadow:inset 0 0 0 1px #d1d5db!important;box-sizing:border-box!important;overflow:visible!important;font-family:inherit!important;font-size:inherit!important}",
+          ".composer textarea{box-sizing:border-box!important;width:100%!important;padding:0!important;border:0!important;background:transparent!important;outline:0!important;resize:none!important;line-height:1.35!important;display:block!important;box-shadow:none!important;font:inherit!important}",
+          ".send-btn{position:absolute!important;right:10px!important;top:50%!important;bottom:auto!important;transform:translateY(-50%)!important;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important;padding:0!important;border:0!important;border-radius:999px!important;background:var(--chatflow-index-primary,var(--chatbot-primary,#2563eb))!important;color:#fff!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:0!important;line-height:1!important;box-shadow:none!important;overflow:hidden!important;cursor:pointer!important}",
           ".send-btn::before{content:''!important;display:block!important;width:15px!important;height:15px!important;background-image:url('" + SEND_ICON + "')!important;background-repeat:no-repeat!important;background-position:center!important;background-size:15px 15px!important}",
           ".send-btn::after{content:none!important;display:none!important}",
-          ".send-btn:disabled{opacity:.55!important;cursor:not-allowed!important}",
-          ".composer[data-multiline='true'] .send-btn{top:auto!important;bottom:8px!important;transform:none!important}",
-          ".branding{display:none!important;text-align:center!important;padding:8px 12px!important;font-size:12px!important;border-top:0!important;border-bottom:0!important;background:#fff!important;font-family:inherit!important;box-shadow:none!important}",
-          ".branding[data-visible='true']{display:block!important}",
-          ".branding a{color:#64748b!important;text-decoration:none!important;font-weight:400!important}",
-          ".branding a .chatflow-brand-text{color:#0949c7!important;font-weight:800!important}",
-          ".widget-root[data-theme='dark'] .composer{background:#111827!important;color:#f9fafb!important;box-shadow:inset 0 0 0 1px #374151!important}",
-          ".widget-root[data-theme='dark'] .branding{background:#111827!important;color:#f9fafb!important}",
-          ".widget-root[data-theme='dark'] .composer textarea{background:transparent!important;color:#f9fafb!important;border-color:transparent!important}",
-          "@media(max-width:767px){:host{border-radius:16px!important}.widget-root{border-radius:16px!important}.chat-panel,.panel,.chat-container{border-radius:16px!important}.chat-header .avatar,.avatar{width:44px!important;height:44px!important;min-width:44px!important;flex-basis:44px!important}.chat-header .title,.title{font-size:17px!important;font-weight:800!important;line-height:1.2!important}.composer{margin:6px 10px 8px!important;padding:8px 48px 8px 13px!important;border-radius:23px!important}.composer:not([data-multiline='true']) textarea{height:22px!important;min-height:22px!important;max-height:22px!important}.composer[data-multiline='true'] textarea{min-height:22px!important;max-height:112px!important;overflow-y:auto!important}.send-btn{right:9px!important;top:50%!important;bottom:auto!important;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important}.send-btn::before{width:14px!important;height:14px!important;background-size:14px 14px!important}.composer[data-multiline='true'] .send-btn{top:auto!important;bottom:8px!important;transform:none!important}}",
-          "@media(max-width:420px){:host{border-radius:14px!important}.widget-root{border-radius:14px!important}.chat-panel,.panel,.chat-container{border-radius:14px!important}.chat-header .title,.title{font-size:16px!important}.composer{margin:6px 8px 7px!important;padding:7px 44px 7px 12px!important;border-radius:22px!important}.composer:not([data-multiline='true']) textarea{height:22px!important;min-height:22px!important;max-height:22px!important}.composer[data-multiline='true'] textarea{min-height:22px!important;max-height:108px!important;overflow-y:auto!important}.send-btn{right:8px!important;top:50%!important;bottom:auto!important;width:26px!important;height:26px!important;min-width:26px!important;max-width:26px!important}.send-btn::before{width:13px!important;height:13px!important;background-size:13px 13px!important}.composer[data-multiline='true'] .send-btn{top:auto!important;bottom:7px!important;transform:none!important}}"
+          ".branding{display:none!important}",
+          "@media(max-width:767px){:host{border-radius:16px!important}.widget-root{border-radius:16px!important}.chat-panel,.panel,.chat-container{border-radius:16px!important}.composer{margin:6px 10px 8px!important;padding:8px 48px 8px 13px!important}.send-btn{right:9px!important}}"
         ].join("\n");
-        root.appendChild(style);
 
-        function styleBrandingText() {
-          var link = root.querySelector(".branding a");
-          if (!link || link.querySelector(".chatflow-brand-text")) return;
-          var text = link.textContent || "";
-          var match = text.match(/Chatflow AI/i);
-          if (!match) return;
-          var start = match.index;
-          var end = start + match[0].length;
-          link.textContent = "";
-          if (start > 0) link.appendChild(document.createTextNode(text.slice(0, start)));
-          var brandSpan = document.createElement("span");
-          brandSpan.className = "chatflow-brand-text";
-          brandSpan.textContent = text.slice(start, end);
-          link.appendChild(brandSpan);
-          if (end < text.length) link.appendChild(document.createTextNode(text.slice(end)));
-        }
-
-        function hideLeadDataFromMessages() {
-          var bubbles = root.querySelectorAll(".message.bot .bubble-msg,.message.bot .bubble,.bot .bubble-msg");
-          for (var i = 0; i < bubbles.length; i += 1) {
-            var bubble = bubbles[i];
-            var text = bubble.textContent || "";
-            var match = text.match(/\bLEAD_DATA\s*:/i);
-            if (!match) continue;
-
-            var cleanText = text.slice(0, match.index).trim();
-            if (bubble.getAttribute("data-lead-visible-text") === cleanText) continue;
-            bubble.setAttribute("data-lead-visible-text", cleanText);
-            bubble.innerHTML = "";
-
-            if (!cleanText) {
-              bubble.style.display = "none";
-              continue;
-            }
-
-            bubble.style.display = "";
-            cleanText.split(/\n{2,}/).forEach(function (paragraphText) {
-              var paragraph = paragraphText.trim();
-              if (!paragraph) return;
-              var p = document.createElement("p");
-              paragraph.split(/\n/).forEach(function (line, lineIndex) {
-                if (lineIndex > 0) p.appendChild(document.createElement("br"));
-                p.appendChild(document.createTextNode(line));
-              });
-              bubble.appendChild(p);
-            });
-          }
-        }
-
-        function getDefaultTextareaHeight() {
-          if (window.matchMedia && window.matchMedia("(max-width:767px)").matches) return 22;
-          return 24;
-        }
-
-        function getMaxTextareaHeight() {
-          if (window.matchMedia && window.matchMedia("(max-width:420px)").matches) return 108;
-          if (window.matchMedia && window.matchMedia("(max-width:767px)").matches) return 112;
-          return 118;
-        }
-
-        function resizeComposerInput() {
-          var composer = root.querySelector(".composer");
-          var textarea = root.querySelector(".composer textarea");
-          if (!composer || !textarea) return;
-
-          var defaultHeight = getDefaultTextareaHeight();
-          var maxHeight = getMaxTextareaHeight();
-          var value = textarea.value || "";
-
-          textarea.style.setProperty("height", "auto", "important");
-          var measuredHeight = textarea.scrollHeight || defaultHeight;
-          var nextHeight = Math.max(defaultHeight, Math.min(measuredHeight, maxHeight));
-          var isMultiline = value.indexOf("\n") !== -1 || measuredHeight > defaultHeight + 3;
-
-          if (isMultiline) {
-            composer.setAttribute("data-multiline", "true");
-          } else {
-            composer.removeAttribute("data-multiline");
-            nextHeight = defaultHeight;
-          }
-
-          textarea.style.setProperty("height", nextHeight + "px", "important");
-          textarea.style.setProperty("min-height", defaultHeight + "px", "important");
-          textarea.style.setProperty("max-height", maxHeight + "px", "important");
-          textarea.style.setProperty("overflow-y", isMultiline && measuredHeight >= maxHeight ? "auto" : "hidden", "important");
-        }
-
-        function alignSendButton() {
-          var composer = root.querySelector(".composer");
-          var sendBtn = root.querySelector(".send-btn");
-          if (!composer || !sendBtn) return;
-          sendBtn.style.setProperty("background", "var(--chatflow-index-primary,var(--chatbot-primary,#2563eb))", "important");
-          sendBtn.style.setProperty("right", window.matchMedia && window.matchMedia("(max-width:420px)").matches ? "8px" : window.matchMedia && window.matchMedia("(max-width:767px)").matches ? "9px" : "10px", "important");
-          if (composer.getAttribute("data-multiline") === "true") {
-            sendBtn.style.setProperty("top", "auto", "important");
-            sendBtn.style.setProperty("bottom", window.matchMedia && window.matchMedia("(max-width:420px)").matches ? "7px" : "8px", "important");
-            sendBtn.style.setProperty("transform", "none", "important");
-          } else {
-            sendBtn.style.setProperty("top", "50%", "important");
-            sendBtn.style.setProperty("bottom", "auto", "important");
-            sendBtn.style.setProperty("transform", "translateY(-50%)", "important");
-          }
-        }
-
-        function applyStableLayout() {
-          var widgetRoot = root.querySelector(".widget-root");
-          if (widgetRoot && widgetRoot.getAttribute("data-open") !== "true") widgetRoot.setAttribute("data-open", "true");
-          syncPrimaryColor(host);
-          styleBrandingText();
-          hideLeadDataFromMessages();
-          resizeComposerInput();
-          alignSendButton();
-        }
-
-        var scheduled = false;
-        function scheduleStableLayout() {
-          if (scheduled) return;
-          scheduled = true;
-          var run = function () {
-            scheduled = false;
-            applyStableLayout();
-          };
-          if (window.requestAnimationFrame) window.requestAnimationFrame(run);
-          else window.setTimeout(run, 50);
-        }
-
-        applyStableLayout();
-        window.setTimeout(scheduleStableLayout, 250);
-        window.setTimeout(scheduleStableLayout, 1000);
-
-        if (window.MutationObserver) {
-          var observer = new MutationObserver(scheduleStableLayout);
-          observer.observe(root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["data-open"] });
-        }
-
-        root.addEventListener("input", scheduleStableLayout, true);
-        root.addEventListener("keydown", scheduleStableLayout, true);
-        root.addEventListener("keyup", scheduleStableLayout, true);
-        root.addEventListener("paste", scheduleStableLayout, true);
+        var widgetRoot = root.querySelector(".widget-root");
+        if (widgetRoot && widgetRoot.getAttribute("data-open") !== "true") widgetRoot.setAttribute("data-open", "true");
+        syncPrimaryColor(host);
       }
+
+      window.addEventListener("error", function (event) {
+        var filename = String((event && event.filename) || "");
+        if (filename.indexOf("chatbot-widget.js") !== -1) {
+          lastWidgetError = String((event && event.message) || "Widget JavaScript error");
+          if (window.console && console.error) console.error("[chatflow-index] widget script error:", event.error || event.message || event);
+        }
+      });
+
+      window.addEventListener("unhandledrejection", function (event) {
+        var reason = event && event.reason;
+        var message = reason && reason.message ? reason.message : String(reason || "Unhandled widget promise rejection");
+        if (/chatbot|widget|shadowRoot|data-bot-id|botId/i.test(message)) {
+          lastWidgetError = message;
+          if (window.console && console.error) console.error("[chatflow-index] widget promise error:", reason || event);
+        }
+      });
+
+      installConfigMonitor();
+      installCreateChatSaveCorsBypass();
+
+      var botId = getParam(["data-bot-id", "botId", "botID", "bot_id", "bot", "chatbotId", "chatbot_id"]);
+      var chatbotToken = getParam(["data-chatbot-token", "chatbotToken", "chatbot_token", "widgetToken", "widget_token", "token", "data-token", "data-widget-token"]);
+
+      if (!botId) {
+        showError("Bot ID missing. Use ?botId=YOUR_BOT_ID in the index.html URL.");
+        return;
+      }
+
+      if (loader) loader.textContent = "Loading chatbot data...";
+      loadWidget(false, botId, chatbotToken);
     })();
   </script>
 </body>
