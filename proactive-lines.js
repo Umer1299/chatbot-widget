@@ -4,6 +4,7 @@
   var STATE_KEY = "__chatflowProactiveLines";
   var FETCH_PATCHED_KEY = "__chatflowProactiveLinesFetchPatched";
   var XHR_PATCHED_KEY = "__chatflowProactiveLinesXhrPatched";
+  var LAST_REFETCH_KEY = "__chatflowProactiveLinesLastRefetch";
   var MAX_Z_INDEX = 2147483647;
 
   function normalizeText(value) {
@@ -219,9 +220,36 @@
     };
   }
 
+  function findLastGetChatbotUrl() {
+    try {
+      if (!window.performance || !performance.getEntriesByType) return "";
+      var entries = performance.getEntriesByType("resource") || [];
+      for (var i = entries.length - 1; i >= 0; i -= 1) {
+        var name = entries[i] && entries[i].name ? String(entries[i].name) : "";
+        if (name.indexOf("/api/1.1/wf/get-chatbot") !== -1) return name;
+      }
+    } catch (error) {}
+    return "";
+  }
+
+  function refetchExistingGetChatbot() {
+    if (!window.fetch) return;
+    var url = findLastGetChatbotUrl();
+    if (!url || window[LAST_REFETCH_KEY] === url) return;
+    window[LAST_REFETCH_KEY] = url;
+    fetch(url, { credentials: "include", cache: "no-store" })
+      .then(function (response) { return response && response.json ? response.json() : null; })
+      .then(function (data) { if (data) store(data); })
+      .catch(function () { window[LAST_REFETCH_KEY] = ""; });
+  }
+
   patchFetch();
   patchXhr();
   ensureBox();
+  refetchExistingGetChatbot();
+  setTimeout(refetchExistingGetChatbot, 500);
+  setTimeout(refetchExistingGetChatbot, 1500);
+  setTimeout(refetchExistingGetChatbot, 3000);
   setInterval(render, 500);
   document.addEventListener("click", function () { setTimeout(render, 100); }, true);
 })();
