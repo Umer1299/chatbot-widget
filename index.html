@@ -224,12 +224,18 @@
       font: inherit;
       line-height: 1.35;
       color: var(--chatflow-text);
+      overflow-y: hidden;
+    }
+
+    .composer[data-multiline="true"] textarea {
+      overflow-y: auto;
     }
 
     .send-btn {
       position: absolute;
       right: 10px;
       top: 50%;
+      bottom: auto;
       transform: translateY(-50%);
       display: flex;
       align-items: center;
@@ -237,13 +243,39 @@
       width: 28px;
       height: 28px;
       min-width: 28px;
+      max-width: 28px;
+      padding: 0;
       border: 0;
       border-radius: 999px;
       background: var(--chatflow-primary);
       color: #fff;
       cursor: pointer;
+      font-size: 0;
       font-weight: 800;
       line-height: 1;
+      text-indent: 0;
+      box-shadow: none;
+      overflow: hidden;
+    }
+
+    .send-btn::before {
+      content: '↑';
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1;
+      margin-top: -1px;
+    }
+
+    .composer[data-multiline="true"] .send-btn {
+      top: auto;
+      bottom: 8px;
+      transform: none;
     }
 
     .send-btn:disabled { opacity: 0.55; cursor: not-allowed; }
@@ -253,14 +285,15 @@
       padding: 6px 12px 8px;
       text-align: center;
       font-size: 10px;
+      line-height: 1.05;
       color: #9ca3af;
       background: #fff;
       flex: 0 0 auto;
     }
 
     .branding[data-visible="true"] { display: block; }
-    .branding a { color: #9ca3af; text-decoration: none; }
-    .branding strong { color: #0949c7; }
+    .branding a { color: #9ca3af; text-decoration: none; font-size: 10px; }
+    .branding strong { color: #0949c7; font-weight: 800; font-size: 10px; }
 
     @media (max-width: 767px) {
       :root { --chatflow-radius: 16px; }
@@ -270,6 +303,7 @@
       .messages { padding: 14px; }
       .composer { margin: 6px 10px 8px; padding: 8px 48px 8px 13px; }
       .send-btn { right: 9px; }
+      .composer[data-multiline="true"] .send-btn { bottom: 8px; }
     }
   </style>
 </head>
@@ -286,9 +320,9 @@
       </div>
       <div class="messages" id="messages"></div>
       <div class="prompts" id="prompts"></div>
-      <div class="composer">
+      <div class="composer" id="composer">
         <textarea id="input" rows="1" placeholder="Message..."></textarea>
-        <button class="send-btn" id="send-btn" type="button" aria-label="Send">↑</button>
+        <button class="send-btn" id="send-btn" type="button" aria-label="Send">Send</button>
       </div>
       <div class="branding" id="branding"><a id="branding-link" target="_blank" rel="noopener noreferrer"></a></div>
     </div>
@@ -308,6 +342,7 @@
       var title = document.getElementById("title");
       var messagesEl = document.getElementById("messages");
       var promptsEl = document.getElementById("prompts");
+      var composer = document.getElementById("composer");
       var input = document.getElementById("input");
       var sendBtn = document.getElementById("send-btn");
       var clearBtn = document.getElementById("clear-btn");
@@ -451,6 +486,12 @@
         return getVersionedApiHost() + "/" + raw.replace(/^\/+/, "");
       }
 
+      function normalizeBrandingName(value) {
+        var text = String(value || "Chatflow AI").replace(/\s+/g, " ").trim();
+        text = text.replace(/^powered\s+by\s+/i, "").trim();
+        return text || "Chatflow AI";
+      }
+
       function requestWithTimeout(url, options, timeoutMs) {
         var controller = window.AbortController ? new AbortController() : null;
         var timeoutId = null;
@@ -583,14 +624,16 @@
         else avatar.style.backgroundImage = "none";
 
         if (config.showBranding && config.brandingText && config.brandingUrl) {
+          var brandName = normalizeBrandingName(config.brandingText);
           branding.setAttribute("data-visible", "true");
           brandingLink.href = config.brandingUrl;
-          brandingLink.innerHTML = "Powered by <strong>" + escapeHtml(config.brandingText) + "</strong>";
+          brandingLink.innerHTML = "Powered by <strong>" + escapeHtml(brandName) + "</strong>";
         } else {
           branding.setAttribute("data-visible", "false");
         }
 
         resetConversation(false);
+        resizeInput();
         showApp();
       }
 
@@ -638,6 +681,7 @@
         messagesEl.innerHTML = "";
         if (state.config && state.config.welcomeMessage) appendMessage("bot", state.config.welcomeMessage, { skipHistory: true });
         renderPrompts();
+        resizeInput();
         if (keepFocus !== false && input && input.focus) input.focus();
       }
 
@@ -804,6 +848,7 @@
         var text = String(textOverride || input.value || "").trim();
         if (!text) return;
         input.value = "";
+        resizeInput();
         state.hasStarted = true;
         appendMessage("user", text);
         var botBubble = createTypingBubble();
@@ -830,9 +875,25 @@
       }
 
       function resizeInput() {
+        if (!input || !composer) return;
+        var defaultHeight = 24;
+        var maxHeight = window.matchMedia && window.matchMedia("(max-width: 767px)").matches ? 112 : 118;
+        var value = input.value || "";
         input.style.height = "auto";
-        var max = window.matchMedia && window.matchMedia("(max-width: 767px)").matches ? 112 : 118;
-        input.style.height = Math.min(Math.max(input.scrollHeight || 24, 24), max) + "px";
+        var measuredHeight = input.scrollHeight || defaultHeight;
+        var nextHeight = Math.max(defaultHeight, Math.min(measuredHeight, maxHeight));
+        var isMultiline = value.indexOf("\n") !== -1 || measuredHeight > defaultHeight + 3;
+
+        if (isMultiline) composer.setAttribute("data-multiline", "true");
+        else {
+          composer.removeAttribute("data-multiline");
+          nextHeight = defaultHeight;
+        }
+
+        input.style.height = nextHeight + "px";
+        input.style.minHeight = defaultHeight + "px";
+        input.style.maxHeight = maxHeight + "px";
+        input.style.overflowY = isMultiline && measuredHeight >= maxHeight ? "auto" : "hidden";
       }
 
       sendBtn.addEventListener("click", function () { sendMessage(); });
