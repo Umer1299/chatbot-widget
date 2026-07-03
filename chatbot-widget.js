@@ -65,8 +65,8 @@
   function decodePathForOriginalWidget(url) {
     var raw = String(url || "").trim();
     if (!raw) return "";
-    raw = raw.replace(/&amp;/g, "&").replace(/^['\"]|['\"]$/g, "").trim();
-    var cssMatch = raw.match(/^url\((['\"]?)(.*?)\1\)$/i);
+    raw = raw.replace(/&amp;/g, "&").replace(/^[\'\"]|[\'\"]$/g, "").trim();
+    var cssMatch = raw.match(/^url\(([\'\"]?)(.*?)\1\)$/i);
     if (cssMatch && cssMatch[2]) raw = cssMatch[2].trim();
     if (!raw || raw.indexOf("data:") === 0 || raw.indexOf("blob:") === 0) return raw;
     raw = raw.replace(/%25/g, "%");
@@ -257,7 +257,7 @@
       ".branding[data-visible='true']{display:block!important}",
       ".branding a{color:#9ca3af!important;text-decoration:none!important;font-size:10px!important;line-height:1.05!important;font-weight:400!important;font-family:Inter,Arial,sans-serif!important}",
       ".branding a .chatflow-brand-text{color:#0949c7!important;font-weight:800!important;font-size:10px!important;line-height:1.05!important}",
-      ".launcher{width:62px!important;height:62px!important;min-width:62px!important;min-height:62px!important;border:0!important;border-radius:999px!important;box-shadow:0 12px 30px rgba(15,23,42,.24)!important;cursor:pointer!important;overflow:hidden!important;display:flex!important;align-items:center!important;justify-content:center!important;color:#fff!important}",
+      ".launcher{width:80px!important;height:80px!important;min-width:80px!important;min-height:80px!important;border:0!important;border-radius:999px!important;box-shadow:0 12px 30px rgba(15,23,42,.24)!important;cursor:pointer!important;overflow:hidden!important;display:flex!important;align-items:center!important;justify-content:center!important;color:#fff!important}",
       ".widget-root[data-open='false'] .launcher{background:var(--chatbot-launcher-bg,var(--chatbot-primary,#1450d8))!important;background-color:var(--chatbot-launcher-bg,var(--chatbot-primary,#1450d8))!important;font-size:0!important}",
       ".widget-root[data-open='false'] .launcher img{background:transparent!important;object-fit:contain!important}",
       ".widget-root[data-open='true'] .launcher{background:var(--chatbot-primary,#1450d8)!important;background-color:var(--chatbot-primary,#1450d8)!important;color:transparent!important;font-size:0!important;position:relative!important}",
