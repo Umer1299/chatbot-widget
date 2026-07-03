@@ -5,6 +5,7 @@
   var MAX_Z_INDEX = 2147483647;
   var SCAN_INTERVAL_MS = 80;
   var MAX_SCAN_ATTEMPTS = 400;
+  var PROACTIVE_MESSAGES_KEY = "__chatflowProactiveMessages";
   var DOWN_CHEVRON_SVG = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='12' viewBox='0 0 20 12' fill='none'%3E%3Cpath d='M3 3L10 9L17 3' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\")";
 
   function getCurrentScriptTag() {
@@ -42,6 +43,94 @@
       script.getAttribute("data-button-bg-color") ||
       ""
     );
+  }
+
+  function normalizeProactiveText(value) {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "object") {
+      var fields = ["text", "message", "content", "body", "label", "title", "value"];
+      for (var i = 0; i < fields.length; i += 1) {
+        if (value[fields[i]] !== null && value[fields[i]] !== undefined && String(value[fields[i]]).trim()) {
+          return String(value[fields[i]]).replace(/\s+/g, " ").trim();
+        }
+      }
+      return "";
+    }
+    return String(value).replace(/\s+/g, " ").trim();
+  }
+
+  function appendProactiveMessages(messages, value) {
+    if (value === null || value === undefined) return;
+    if (Array.isArray(value)) {
+      for (var i = 0; i < value.length; i += 1) appendProactiveMessages(messages, value[i]);
+      return;
+    }
+    if (typeof value === "object") {
+      var objectText = normalizeProactiveText(value);
+      if (objectText) messages.push(objectText);
+      return;
+    }
+    var raw = String(value || "").trim();
+    if (!raw) return;
+    if ((raw.charAt(0) === "[" && raw.charAt(raw.length - 1) === "]") || (raw.charAt(0) === "{" && raw.charAt(raw.length - 1) === "}")) {
+      try {
+        appendProactiveMessages(messages, JSON.parse(raw));
+        return;
+      } catch (error) {}
+    }
+    var parts = raw.split(/\n{2,}|\s*\|\|\s*/g);
+    for (var j = 0; j < parts.length; j += 1) {
+      var text = normalizeProactiveText(parts[j]);
+      if (text) messages.push(text);
+    }
+  }
+
+  function extractProactiveMessages(data) {
+    var config = data && typeof data === "object" && data.response && typeof data.response === "object" ? data.response : data;
+    var messages = [];
+    if (!config || typeof config !== "object") return messages;
+    var candidates = [
+      config.proactiveMessages,
+      config.proactive_messages,
+      config.proactiveMessage,
+      config.proactive_message,
+      config.proactiveMessageText,
+      config.proactive_message_text,
+      config.launcherMessages,
+      config.launcher_messages,
+      config.launcherMessage,
+      config.launcher_message,
+      config.welcomeMessages,
+      config.welcome_messages,
+      config.welcomeMessage,
+      config.welcome_message,
+      config.teaserMessages,
+      config.teaser_messages,
+      config.greetingMessages,
+      config.greeting_messages,
+      config.chatbaseMessages,
+      config.chatbase_messages
+    ];
+    for (var i = 0; i < candidates.length; i += 1) appendProactiveMessages(messages, candidates[i]);
+    var bases = ["proactive_message_", "proactiveMessage", "launcher_message_", "launcherMessage", "welcome_message_", "welcomeMessage", "teaser_message_", "teaserMessage", "greeting_message_", "greetingMessage"];
+    for (var n = 1; n <= 5; n += 1) {
+      for (var b = 0; b < bases.length; b += 1) appendProactiveMessages(messages, config[bases[b] + n]);
+    }
+    var unique = [];
+    for (var m = 0; m < messages.length; m += 1) {
+      if (unique.indexOf(messages[m]) === -1) unique.push(messages[m]);
+    }
+    return unique.slice(0, 2);
+  }
+
+  function storeProactiveMessagesFromConfig(data) {
+    var messages = extractProactiveMessages(data);
+    window[PROACTIVE_MESSAGES_KEY] = { messages: messages };
+  }
+
+  function getStoredProactiveMessages() {
+    var state = window[PROACTIVE_MESSAGES_KEY];
+    return state && Array.isArray(state.messages) ? state.messages : [];
   }
 
   function installInterFont() {
@@ -108,6 +197,7 @@
           }
           sanitize(data);
           if (data && data.response) sanitize(data.response);
+          storeProactiveMessagesFromConfig(data);
           return new Response(JSON.stringify(data), { status: response.status, statusText: response.statusText, headers: response.headers });
         }).catch(function () { return response; });
       });
@@ -188,6 +278,33 @@
     }
   }
 
+  function renderProactiveMessages(root) {
+    if (!root || !root.querySelector) return;
+    var widgetRoot = root.querySelector(".widget-root");
+    var launcher = root.querySelector(".launcher");
+    var existing = root.querySelector(".chatflow-proactive-messages");
+    var messages = getStoredProactiveMessages();
+    var isOpen = widgetRoot && widgetRoot.getAttribute("data-open") === "true";
+    if (!messages.length || !launcher || !launcher.parentNode || isOpen) {
+      if (existing) existing.style.setProperty("display", "none", "important");
+      return;
+    }
+    if (!existing) {
+      existing = document.createElement("div");
+      existing.className = "chatflow-proactive-messages";
+      launcher.parentNode.insertBefore(existing, launcher);
+    }
+    existing.innerHTML = "";
+    for (var i = 0; i < messages.length; i += 1) {
+      var bubble = document.createElement("div");
+      bubble.className = "chatflow-proactive-message";
+      bubble.textContent = messages[i];
+      existing.appendChild(bubble);
+    }
+    existing.onclick = function () { if (launcher && typeof launcher.click === "function") launcher.click(); };
+    existing.style.setProperty("display", "flex", "important");
+  }
+
   function getDefaultTextareaHeight() { return window.matchMedia && window.matchMedia("(max-width:767px)").matches ? 22 : 24; }
   function getMaxTextareaHeight() { return window.matchMedia && window.matchMedia("(max-width:767px)").matches ? 112 : 118; }
 
@@ -265,10 +382,15 @@
       ".widget-root[data-open='true'] .launcher::before{content:''!important;display:block!important;position:absolute!important;left:50%!important;top:50%!important;width:20px!important;height:12px!important;transform:translate(-50%,-50%)!important;background-repeat:no-repeat!important;background-position:center!important;background-size:20px 12px!important;background-image:" + DOWN_CHEVRON_SVG + "!important}",
       ".widget-root[data-open='true'] .launcher::after{content:none!important;display:none!important}",
       ".launcher img{object-fit:contain!important;background:transparent!important}",
+      ".chatflow-proactive-messages{display:flex!important;flex-direction:column!important;gap:10px!important;align-items:flex-end!important;max-width:360px!important;margin:0 4px 12px auto!important;pointer-events:auto!important;z-index:" + MAX_Z_INDEX + "!important}",
+      ".chatflow-proactive-message{box-sizing:border-box!important;max-width:360px!important;width:max-content!important;background:#fff!important;color:#111827!important;border:1px solid rgba(17,24,39,.12)!important;border-radius:10px!important;box-shadow:0 8px 24px rgba(15,23,42,.10)!important;padding:13px 18px!important;font-size:14px!important;line-height:1.35!important;font-weight:400!important;letter-spacing:0!important;text-align:left!important;white-space:normal!important;cursor:pointer!important}",
+      ".chatflow-proactive-message:hover{box-shadow:0 10px 28px rgba(15,23,42,.14)!important}",
+      ".widget-root[data-position='left'] .chatflow-proactive-messages{align-items:flex-start!important;margin-left:4px!important;margin-right:auto!important}",
+      ".widget-root[data-open='true'] .chatflow-proactive-messages{display:none!important}",
       ".widget-root[data-theme='dark'] .composer{background:#111827!important;color:#f9fafb!important;box-shadow:inset 0 0 0 1px #374151!important}",
       ".widget-root[data-theme='dark'] .branding{background:#111827!important;color:#f9fafb!important}",
       ".widget-root[data-theme='dark'] .composer textarea{background:transparent!important;color:#f9fafb!important;border-color:transparent!important}",
-      "@media (max-width:767px){:host{position:fixed!important;inset:0!important;width:100%!important;height:100%!important}.widget-root{left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%!important;max-width:100%!important;align-items:flex-end!important;gap:0!important}.widget-root[data-position=\"left\"]{left:0!important;right:0!important;align-items:flex-end!important}.widget-root[data-open=\"true\"]{top:0!important;height:100vh!important;height:100dvh!important;align-items:stretch!important}.widget-root[data-open=\"true\"] .chat-panel{position:fixed!important;inset:0!important;width:100vw!important;max-width:100vw!important;height:100vh!important;height:100dvh!important;max-height:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}.widget-root[data-open=\"true\"] .launcher{display:none!important}.widget-root[data-open=\"false\"] .launcher{position:fixed!important;right:16px!important;bottom:calc(16px + env(safe-area-inset-bottom))!important}.widget-root[data-open=\"false\"][data-position=\"left\"] .launcher{right:auto!important;left:16px!important}.chat-header{min-height:56px!important;padding:calc(12px + env(safe-area-inset-top)) 14px 12px!important}.chat-header .avatar,.avatar{width:36px!important;height:36px!important;min-width:36px!important;flex-basis:36px!important}.chat-header .title{padding-right:4px!important;font-size:17px!important}.chat-header .icon-btn{flex-basis:22px!important;width:22px!important;height:22px!important}.chat-header .clear-btn{font-size:21px!important}.chat-header .close-btn{font-size:26px!important}.messages{padding:14px!important}.prompts{padding:10px 12px!important}.composer{margin:6px 10px 8px!important;padding:8px 48px 8px 13px!important;border-radius:23px!important}.composer:not([data-multiline='true']) textarea{height:22px!important;min-height:22px!important;max-height:22px!important}.composer[data-multiline='true'] textarea{min-height:22px!important;max-height:112px!important}.send-btn{right:9px!important;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important}.send-btn::before{font-size:15px!important}.composer[data-multiline='true'] .send-btn{bottom:8px!important}.branding,.branding a,.branding a .chatflow-brand-text{font-size:10px!important;line-height:1.05!important}}"
+      "@media (max-width:767px){:host{position:fixed!important;inset:0!important;width:100%!important;height:100%!important}.widget-root{left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%!important;max-width:100%!important;align-items:flex-end!important;gap:0!important}.widget-root[data-position=\"left\"]{left:0!important;right:0!important;align-items:flex-end!important}.widget-root[data-open=\"true\"]{top:0!important;height:100vh!important;height:100dvh!important;align-items:stretch!important}.widget-root[data-open=\"true\"] .chat-panel{position:fixed!important;inset:0!important;width:100vw!important;max-width:100vw!important;height:100vh!important;height:100dvh!important;max-height:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}.widget-root[data-open=\"true\"] .launcher{display:none!important}.widget-root[data-open=\"false\"] .launcher{position:fixed!important;right:16px!important;bottom:calc(16px + env(safe-area-inset-bottom))!important}.widget-root[data-open=\"false\"][data-position=\"left\"] .launcher{right:auto!important;left:16px!important}.chatflow-proactive-messages{position:fixed!important;right:16px!important;bottom:calc(106px + env(safe-area-inset-bottom))!important;max-width:calc(100vw - 32px)!important;margin:0!important;align-items:flex-end!important}.widget-root[data-position=\"left\"] .chatflow-proactive-messages{right:auto!important;left:16px!important;align-items:flex-start!important}.chatflow-proactive-message{max-width:calc(100vw - 32px)!important}.chat-header{min-height:56px!important;padding:calc(12px + env(safe-area-inset-top)) 14px 12px!important}.chat-header .avatar,.avatar{width:36px!important;height:36px!important;min-width:36px!important;flex-basis:36px!important}.chat-header .title{padding-right:4px!important;font-size:17px!important}.chat-header .icon-btn{flex-basis:22px!important;width:22px!important;height:22px!important}.chat-header .clear-btn{font-size:21px!important}.chat-header .close-btn{font-size:26px!important}.messages{padding:14px!important}.prompts{padding:10px 12px!important}.composer{margin:6px 10px 8px!important;padding:8px 48px 8px 13px!important;border-radius:23px!important}.composer:not([data-multiline='true']) textarea{height:22px!important;min-height:22px!important;max-height:22px!important}.composer[data-multiline='true'] textarea{min-height:22px!important;max-height:112px!important}.send-btn{right:9px!important;width:28px!important;height:28px!important;min-width:28px!important;max-width:28px!important}.send-btn::before{font-size:15px!important}.composer[data-multiline='true'] .send-btn{bottom:8px!important}.branding,.branding a,.branding a .chatflow-brand-text{font-size:10px!important;line-height:1.05!important}}"
     ].join("\n");
   }
 
@@ -304,6 +426,7 @@
     styleBrandingText(root);
     hideLeadDataFromMessages(root);
     patchImages(root);
+    renderProactiveMessages(root);
     resizeComposerInput(root);
     alignLauncherAndSend(root);
   }
